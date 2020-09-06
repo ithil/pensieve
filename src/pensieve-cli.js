@@ -88,8 +88,8 @@ yargs.command({
       })
     }
     if (argv.paths) {
-      var key = argv[0]
-      var newPath = argv[1]
+      var key = argv.paths[0]
+      var newPath = argv.paths[1]
       try {
         var collection = new NoteCollection('')
       }
