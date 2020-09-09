@@ -311,6 +311,9 @@ class Note{
     this.contentPath = newContentPath
     return newContentPath
   }
+  getName() {
+    return `${this.id}.${this.label}`
+  }
   delete() {
     try {
       fs.unlinkSync(this.metadataPath)
