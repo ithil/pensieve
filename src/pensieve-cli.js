@@ -21,6 +21,13 @@ function openInEditor(file, callback) {
     }
   })
 }
+
+function* arrIterator(arr) {
+  for (i of arr) {
+    yield i
+  }
+}
+
 yargs.command({
   command: 'collection',
   describe: 'Manage or create a collection',
@@ -232,6 +239,10 @@ yargs.command({
       describe: 'Edit the tags in an editor',
       type: 'boolean',
     },
+    select: {
+      describe: 'Select tags',
+      type: 'boolean',
+    },
   },
   handler: function(argv) {
     try {
@@ -286,6 +297,48 @@ yargs.command({
         note.metadata.tags = tagString.split('\n').filter(t => t != '')
         note.save()
       })
+    }
+    if (argv.select) {
+      var it = arrIterator(argv.notes)
+      var createSelector = function(n) {
+        var note = collection.resolveToNote(n)
+        var tags = note.metadata.tags
+        var choices = [new inquirer.Separator(` = ${note.getName()} = `)]
+        var tree = collection.getTagTree()
+        var convertTree = function(tree, level, head) {
+          for (var t of Object.keys(tree)) {
+            var newHead = head + (head=='' ? '' : '.') + t
+            choices.push({
+              name: '  '.repeat(level)+t,
+              value: newHead,
+              checked: tags.includes(newHead)
+            })
+            convertTree(tree[t].subtags, level+1, newHead)
+          }
+        }
+        convertTree(tree, 0, '')
+        inquirer
+        .prompt([
+          {
+            type: 'checkbox',
+            message: 'Select tags',
+            name: 'newTags',
+            pageSize: 20,
+            choices: choices
+          }])
+          .then((answers) => {
+            note.metadata.tags = answers.newTags
+            note.save()
+            var result = it.next()
+            if (!result.done && result.value) {
+              createSelector(result.value)
+            }
+          })
+        }
+        var result = it.next()
+        if (!result.done && result.value) {
+          createSelector(result.value)
+        }
     }
   }
 })
