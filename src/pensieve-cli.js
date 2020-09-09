@@ -285,18 +285,25 @@ yargs.command({
       }
     }
     if (argv.edit) {
-      if (argv.notes.length > 1) {
-        console.error('Error: --edit can only proceed one note at a time')
-        process.exit(1)
+      var it = arrIterator(argv.notes)
+      var editTags = function(n) {
+        var note = collection.resolveToNote(n)
+        var tagString = note.metadata.tags.join('\n')
+        fs.writeFileSync(`/tmp/pensieveTags.${note.getName()}`, tagString, 'utf8')
+        openInEditor(`/tmp/pensieveTags.${note.getName()}`, c => {
+          tagString = fs.readFileSync(`/tmp/pensieveTags.${note.getName()}`, 'utf8')
+          note.metadata.tags = tagString.split('\n').filter(t => t != '')
+          note.save()
+          var result = it.next()
+          if (!result.done && result.value) {
+            editTags(result.value)
+          }
+        })
       }
-      var note = collection.resolveToNote(argv.notes[0])
-      var tagString = note.metadata.tags.join('\n')
-      fs.writeFileSync('/tmp/pensieveTags', tagString, 'utf8')
-      openInEditor('/tmp/pensieveTags', c => {
-        tagString = fs.readFileSync('/tmp/pensieveTags', 'utf8')
-        note.metadata.tags = tagString.split('\n').filter(t => t != '')
-        note.save()
-      })
+      var result = it.next()
+      if (!result.done && result.value) {
+        editTags(result.value)
+      }
     }
     if (argv.select) {
       var it = arrIterator(argv.notes)
