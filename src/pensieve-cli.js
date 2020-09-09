@@ -355,6 +355,22 @@ yargs.command({
     }
   }
 })
+yargs.command({
+  command: 'untagged',
+  describe: 'Return a list of notes tagged with all provided tags',
+  handler: function(argv) {
+    try {
+      var collection = new NoteCollection('')
+    }
+    catch (e) {
+      errorHandler(e)
+    }
+    var notes = collection.getUntaggedNotes()
+    for (var n of notes) {
+      console.log(n.contentPath)
+    }
+  }
+})
 
 yargs.command({
   command: 'search <term>',

@@ -233,6 +233,17 @@ class NoteCollection{
     }
     return notes
   }
+  getUntaggedNotes(notes) {
+    notes = notes || this.getAllNotes()
+    var untaggedNotes = []
+    for (var n of notes) {
+      var noteTags = n.metadata.tags
+      if(noteTags.length < 1) {
+        untaggedNotes.push(n)
+      }
+    }
+    return untaggedNotes
+  }
   getAllNotes() {
     var listing = fs.readdirSync(this.paths.all)
     var notes = []
