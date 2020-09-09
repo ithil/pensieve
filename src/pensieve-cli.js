@@ -291,7 +291,7 @@ yargs.command({
 })
 
 yargs.command({
-  command: 'tagged <tags..>',
+  command: 'tagged [tags..]',
   describe: 'Return a list of notes tagged with all provided tags',
   builder: {
     "edit": {
@@ -302,6 +302,10 @@ yargs.command({
       describe: 'Show the content of the tagged notes',
       type: 'boolean',
     },
+    "tree": {
+      describe: 'Show the tag tree',
+      type: 'boolean',
+    },
   },
   handler: function(argv) {
     try {
@@ -310,8 +314,8 @@ yargs.command({
     catch (e) {
       errorHandler(e)
     }
-    var notes = collection.getNotesByTags(argv.tags)
     if (argv.edit) {
+      var notes = collection.getNotesByTags(argv.tags)
       var files = notes.map(n => n.filename).join('\n')
       fs.writeFileSync('/tmp/pensieveTagFiles', files, 'utf8')
       openInEditor('/tmp/pensieveTagFiles', c => {
@@ -342,7 +346,21 @@ yargs.command({
         })
       })
     }
+    else if (argv.tree) {
+      var tree = collection.getTagTree()
+      var printTree = function(tree, level) {
+        for (var t of Object.keys(tree)) {
+          console.log('  '.repeat(level)+colors.green(t))
+          printTree(tree[t].subtags, level+1)
+          for (var n of tree[t].notes) {
+            console.log('  '.repeat(level+1)+n.getName())
+          }
+        }
+      }
+      printTree(tree, 0)
+    }
     else {
+      var notes = collection.getNotesByTags(argv.tags)
       for (var n of notes) {
         if (argv.view) {
           console.log(colors.red(n.contentPath))

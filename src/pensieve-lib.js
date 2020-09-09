@@ -288,6 +288,36 @@ class NoteCollection{
     }
     return results
   }
+  getTagTree(notes) {
+    notes = notes || this.getAllNotes()
+    var tree = {}
+    var parseTag = function(tree, head, tail, note) {
+      if (!tree[head]) {
+        tree[head] = {
+          "notes": [],
+          "subtags": {}
+        }
+      }
+      if (tail.length > 0) {
+        var newHead, newTail
+        [newHead, ...newTail] = tail
+        parseTag(tree[head].subtags, newHead, newTail, note)
+      }
+      else {
+        tree[head].notes.push(note)
+      }
+      return tree
+    }
+    for (var n of notes) {
+      var tags = n.metadata.tags
+      for (var t of tags) {
+        var head, tail
+        [head, ...tail] = t.split('.')
+        parseTag(tree, head, tail, n)
+      }
+    }
+    return tree
+  }
   saveCollectionJson() {
     fs.writeFileSync(this.collectionJsonPath, JSON.stringify(this.collectionJson, null, ' '), 'utf8')
   }
