@@ -345,9 +345,9 @@ yargs.command({
       var editTags = function(n) {
         var note = collection.resolveToNote(n)
         var tagString = note.metadata.tags.join('\n')
-        fs.writeFileSync(`/tmp/pensieveTags.${note.getName()}`, tagString, 'utf8')
-        openInEditor(`/tmp/pensieveTags.${note.getName()}`, c => {
-          tagString = fs.readFileSync(`/tmp/pensieveTags.${note.getName()}`, 'utf8')
+        fs.writeFileSync(`/tmp/pensieveTags.${note.name}`, tagString, 'utf8')
+        openInEditor(`/tmp/pensieveTags.${note.name}`, c => {
+          tagString = fs.readFileSync(`/tmp/pensieveTags.${note.name}`, 'utf8')
           note.metadata.tags = tagString.split('\n').filter(t => t != '')
           note.save()
           var result = it.next()
@@ -366,7 +366,7 @@ yargs.command({
       var createSelector = function(n) {
         var note = collection.resolveToNote(n)
         var tags = note.metadata.tags
-        var choices = [{message:` = ${note.getName()} = `, role: 'separator'}]
+        var choices = [{message:` = ${note.name} = `, role: 'separator'}]
         var tree = collection.getTagTree()
         var tagMetadata = new pensieve.Tags(collection)
         var convertTree = function(tree, level, head) {
@@ -476,7 +476,7 @@ yargs.command({
           console.log('  '.repeat(level)+colors.grey.bold(`${(currentTagMetadata && currentTagMetadata.icon) ? currentTagMetadata.icon : '#'} `)+colors.green(t))
           printTree(tree[t].subtags, level+1, newHead)
           for (var n of tree[t].notes) {
-            console.log('  '.repeat(level+1)+n.getName())
+            console.log('  '.repeat(level+1)+n.name)
           }
         }
       }

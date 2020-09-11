@@ -366,9 +366,6 @@ class Note{
     this.contentPath = newContentPath
     return newContentPath
   }
-  getName() {
-    return `${this.id}.${this.label}`
-  }
   get name() {
     return `${this.id}.${this.label}`
   }
