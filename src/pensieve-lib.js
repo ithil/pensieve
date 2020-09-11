@@ -334,6 +334,15 @@ class NoteCollection{
     }
     return tree
   }
+  getAllTags(notes) {
+    notes = notes || this.getAllNotes()
+    var allTags = []
+    for (var n of notes) {
+      allTags = allTags.concat(n.metadata.tags)
+    }
+    allTags.filter(t => t)
+    return Array.from(new Set(allTags))
+  }
   saveCollectionJson() {
     fs.writeFileSync(this.collectionJsonPath, JSON.stringify(this.collectionJson, null, ' '), 'utf8')
   }
