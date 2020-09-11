@@ -12,6 +12,9 @@ NoteCollection = pensieve.NoteCollection
 Note = pensieve.Note
 Inbox = pensieve.Inbox
 
+const emojilib = require('emojilib');
+inquirer.registerPrompt('autocomplete', require('inquirer-autocomplete-prompt'))
+
 function openInEditor(file, callback) {
   var editor = process.env.EDITOR || 'vim'
   var ed = child_process.spawn(editor, [file], {stdio: 'inherit'})
@@ -452,6 +455,68 @@ yargs.command({
     var notes = collection.getUntaggedNotes()
     for (var n of notes) {
       console.log(n.contentPath)
+    }
+  }
+})
+
+yargs.command({
+  command: 'tags <tag>',
+  describe: 'Organize tag metadata',
+  builder: {
+    "icon": {
+      describe: 'Change icon',
+    }
+  },
+  handler: function(argv) {
+    try {
+      var collection = new NoteCollection('')
+    }
+    catch (e) {
+      errorHandler(e)
+    }
+    var tagMetadata = new pensieve.Tags(collection)
+    if (argv.icon) {
+      const emoj = input => {
+        input = input || ''
+        const regexSource = input.toLowerCase().split(/\s/g)
+        .map(v => v.replace(/\W/g, ''))
+        .filter(v => v.length > 0)
+        .map(v => v.length < 4 ? `^${v}$` : v)
+        .join('|');
+
+        if (regexSource.length === 0) {
+          return [];
+        }
+
+        const regex = new RegExp(regexSource);
+        const emoji = [];
+
+        for (const [name, data] of Object.entries(emojilib.lib)) {
+          let matches = regex.test(name);
+          for (const keyword of data.keywords) {
+            matches = matches || regex.test(keyword);
+          }
+
+          if (matches) {
+            emoji.push(data.char);
+          }
+        }
+
+        return emoji;
+      }
+
+      inquirer.prompt([{
+        type: 'autocomplete',
+        name: 'icon',
+        message: 'Select an icon for tag: ',
+        source: async (answersSoFar, input) => {
+          return emoj(input);
+        }
+      }]).then(function(answers) {
+        // console.log(answers.icon)
+        tagMetadata.updateTag(argv.tag, {icon: answers.icon})
+        tagMetadata.save()
+      })
     }
   }
 })
