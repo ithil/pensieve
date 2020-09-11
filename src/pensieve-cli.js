@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 const pensieve = require('./pensieve-lib')
-const inquirer = require('inquirer')
+const enquirer = require('enquirer')
 const clipboard = require('copy-paste')
 var yargs = require('yargs')
 var colors = require('colors/safe')
@@ -14,7 +14,6 @@ Note = pensieve.Note
 Inbox = pensieve.Inbox
 
 const emojilib = require('emojilib');
-inquirer.registerPrompt('autocomplete', require('inquirer-autocomplete-prompt'))
 
 function openInEditor(file, callback) {
   var editor = process.env.EDITOR || 'vim'
@@ -44,22 +43,25 @@ function openFileExternally(filepath) {
 }
 
 function searchForNote(collection, cb) {
-  inquirer.prompt([{
+  enquirer.prompt([{
     type: 'autocomplete',
     name: 'note',
     message: 'Select a note: ',
-    source: async (answersSoFar, input) => {
+    choices: collection.allNotes.map(n => {
+      return {message: n.name, name: n.id, value: n}
+    }),
+    suggest: async (input, choices) => {
       var result = collection.fuzzySearchForNote(input)
       var list = []
-      if (result) {
+      if (result && result.length > 0) {
         for (var n of result) {
-          list.push({name: n.item.name, value: n.item})
+          list.push({message: n.item.name, name: n.item.name, value: n.item})
         }
       }
       return list
     }
-  }]).then(function(answers) {
-    cb(answers.note)
+  }]).then(function(answer) {
+    cb(answer.note)
   })
 }
 
@@ -93,33 +95,38 @@ yargs.command({
     if (argv.new) {
       var sampleCJ = pensieve.utils.createNewCollectionJson()
       var options = {}
-      inquirer
+      enquirer
       .prompt([
         {
+          type: 'input',
           name: 'name',
           message: 'What should the collection be called?',
           default: sampleCJ.name,
         },
       ])
       .then(answers1 => {
-        inquirer
+        enquirer
         .prompt([
           {
+            type: 'input',
             name: 'dir',
             message: 'Where should the collection be located?',
             default: path.join(process.cwd(), answers1.name),
           },
           {
+            type: 'input',
             name: 'allFolder',
             message: 'Path of All folder?',
             default: sampleCJ.paths.all,
           },
           {
+            type: 'input',
             name: 'inboxFolder',
             message: 'Path of Inbox folder?',
             default: sampleCJ.paths.inbox,
           },
           {
+            type: 'input',
             name: 'archiveFolder',
             message: 'Path of Archive folder?',
             default: sampleCJ.paths.archive,
@@ -207,7 +214,7 @@ yargs.command({
       errorHandler(e)
     }
     var returnCode = 0
-    inquirer
+    enquirer
       .prompt([
         {
           name: "remove",
@@ -359,7 +366,7 @@ yargs.command({
       var createSelector = function(n) {
         var note = collection.resolveToNote(n)
         var tags = note.metadata.tags
-        var choices = [new inquirer.Separator(` = ${note.getName()} = `)]
+        var choices = [{message:` = ${note.getName()} = `, role: 'separator'}]
         var tree = collection.getTagTree()
         var tagMetadata = new pensieve.Tags(collection)
         var convertTree = function(tree, level, head) {
@@ -367,21 +374,23 @@ yargs.command({
             var newHead = head + (head=='' ? '' : '.') + t
             var currentTagMetadata = tagMetadata.getTag(newHead)
             choices.push({
-              name: '  '.repeat(level)+colors.grey.bold(`${(currentTagMetadata && currentTagMetadata.icon) ? currentTagMetadata.icon : '#'} `)+t,
+              message: '  '.repeat(level)+colors.grey.bold(`${(currentTagMetadata && currentTagMetadata.icon) ? currentTagMetadata.icon : '#'} `)+t,
+              name: newHead,
               value: newHead,
-              checked: tags.includes(newHead)
+              enabled: tags.includes(newHead)
             })
             convertTree(tree[t].subtags, level+1, newHead)
           }
         }
         convertTree(tree, 0, '')
-        inquirer
+        enquirer
         .prompt([
           {
-            type: 'checkbox',
+            type: 'multiselect',
             message: 'Select tags',
             name: 'newTags',
             pageSize: 20,
+            initial: tags,
             choices: choices
           }])
           .then((answers) => {
@@ -464,7 +473,6 @@ yargs.command({
         for (var t of Object.keys(tree)) {
           var newHead = head + (head=='' ? '' : '.') + t
           var currentTagMetadata = tagMetadata.getTag(newHead)
-          // console.log('  '.repeat(level)+colors.green(t))
           console.log('  '.repeat(level)+colors.grey.bold(`${(currentTagMetadata && currentTagMetadata.icon) ? currentTagMetadata.icon : '#'} `)+colors.green(t))
           printTree(tree[t].subtags, level+1, newHead)
           for (var n of tree[t].notes) {
@@ -551,15 +559,17 @@ yargs.command({
         return emoji;
       }
 
-      inquirer.prompt([{
+      enquirer.prompt([{
         type: 'autocomplete',
         name: 'icon',
         message: 'Select an icon for tag: ',
-        source: async (answersSoFar, input) => {
-          return emoj(input);
+        choices: [],
+        suggest: async (input, choices) => {
+          return emoj(input).map(e => {
+            return {message: e, name: e, value: e}
+          })
         }
       }]).then(function(answers) {
-        // console.log(answers.icon)
         tagMetadata.updateTag(argv.tag, {icon: answers.icon})
         tagMetadata.save()
       })
