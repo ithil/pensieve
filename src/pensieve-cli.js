@@ -5,6 +5,7 @@ const clipboard = require('copy-paste')
 var yargs = require('yargs')
 var colors = require('colors/safe')
 const child_process = require('child_process')
+const exec = child_process.exec
 const fs = require('fs')
 const path = require('path')
 
@@ -30,6 +31,51 @@ function* arrIterator(arr) {
     yield i
   }
 }
+
+function openFileExternally(filepath) {
+  var cmd
+  switch (process.platform) {
+    case 'darwin' : cmd = 'open'; break
+    case 'win32' : cmd = 'start'; break
+    case 'win64' : cmd = 'start'; break
+    default : cmd = 'xdg-open'
+  }
+  exec(cmd + ' ' + filepath)
+}
+
+function searchForNote(collection, cb) {
+  inquirer.prompt([{
+    type: 'autocomplete',
+    name: 'note',
+    message: 'Select a note: ',
+    source: async (answersSoFar, input) => {
+      var result = collection.fuzzySearchForNote(input)
+      var list = []
+      if (result) {
+        for (var n of result) {
+          list.push({name: n.item.name, value: n.item})
+        }
+      }
+      return list
+    }
+  }]).then(function(answers) {
+    cb(answers.note)
+  })
+}
+
+yargs.command({
+  command: 'open',
+  describe: 'Open a note in default Markdown app',
+  handler: function(argv) {
+    try {
+      var collection = new NoteCollection('')
+    }
+    catch (e) {
+      errorHandler(e)
+    }
+    searchForNote(collection, n => openFileExternally(n.contentPath))
+  }
+})
 
 yargs.command({
   command: 'collection',

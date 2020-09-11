@@ -3,6 +3,7 @@ const path = require('path')
 const MarkdownIt = require('markdown-it')
 var md = new MarkdownIt()
 const moment = require('moment')
+const Fuse = require('fuse.js')
 
 const pVersion = '0.1'
 var filenameRegex = /^((\d+)[0-9a-z]*)\.([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF]+)\.(md|html|rtf)/m
@@ -141,10 +142,25 @@ class NoteCollection{
       this.collectionJson = JSON.parse(fs.readFileSync(this.collectionJsonPath))
       this.path = path.dirname(this.collectionJsonPath)
       this.paths = utils.objectMap(this.collectionJson.paths, p => path.join(this.path, p))
+      this.allNotes = this.getAllNotes()
     }
     catch (e) {
       throw e
     }
+  }
+  fuzzySearchForNote(term) {
+    term = term || ''
+    var options = {
+      keys: [
+        {
+          name: "name",
+          weight: 3,
+        },
+        "metadata.tags",
+      ]
+    }
+    var fuse = new Fuse(this.allNotes, options)
+    return fuse.search(term)
   }
   getHighestId() {
     var listing = fs.readdirSync(this.paths.all)
@@ -342,6 +358,9 @@ class Note{
     return newContentPath
   }
   getName() {
+    return `${this.id}.${this.label}`
+  }
+  get name() {
     return `${this.id}.${this.label}`
   }
   delete() {
