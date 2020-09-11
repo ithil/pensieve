@@ -312,11 +312,13 @@ yargs.command({
         var tags = note.metadata.tags
         var choices = [new inquirer.Separator(` = ${note.getName()} = `)]
         var tree = collection.getTagTree()
+        var tagMetadata = new pensieve.Tags(collection)
         var convertTree = function(tree, level, head) {
           for (var t of Object.keys(tree)) {
             var newHead = head + (head=='' ? '' : '.') + t
+            var currentTagMetadata = tagMetadata.getTag(newHead)
             choices.push({
-              name: '  '.repeat(level)+t,
+              name: '  '.repeat(level)+colors.grey.bold(`${(currentTagMetadata && currentTagMetadata.icon) ? currentTagMetadata.icon : '#'} `)+t,
               value: newHead,
               checked: tags.includes(newHead)
             })
@@ -408,16 +410,20 @@ yargs.command({
     }
     else if (argv.tree) {
       var tree = collection.getTagTree()
-      var printTree = function(tree, level) {
+      var tagMetadata = new pensieve.Tags(collection)
+      var printTree = function(tree, level, head) {
         for (var t of Object.keys(tree)) {
-          console.log('  '.repeat(level)+colors.green(t))
-          printTree(tree[t].subtags, level+1)
+          var newHead = head + (head=='' ? '' : '.') + t
+          var currentTagMetadata = tagMetadata.getTag(newHead)
+          // console.log('  '.repeat(level)+colors.green(t))
+          console.log('  '.repeat(level)+colors.grey.bold(`${(currentTagMetadata && currentTagMetadata.icon) ? currentTagMetadata.icon : '#'} `)+colors.green(t))
+          printTree(tree[t].subtags, level+1, newHead)
           for (var n of tree[t].notes) {
             console.log('  '.repeat(level+1)+n.getName())
           }
         }
       }
-      printTree(tree, 0)
+      printTree(tree, 0, '')
     }
     else {
       var notes = collection.getNotesByTags(argv.tags)
