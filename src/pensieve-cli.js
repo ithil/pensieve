@@ -644,6 +644,20 @@ yargs.command({
 yargs.command({
   command: 'inbox [text]',
   describe: 'Send something to the inbox',
+  builder: {
+    "text": {
+      describe: 'Send string to inbox',
+      type: 'string',
+    },
+    "clipboard": {
+      describe: 'Send clipboard content to inbox',
+      type: 'boolean',
+    },
+    "view": {
+      describe: 'View the inbox',
+      type: 'boolean',
+    },
+  },
   handler: function(argv) {
     try {
       var collection = new NoteCollection(process.cwd())
@@ -656,6 +670,11 @@ yargs.command({
       inbox.sendText(argv.text)
     }
     else if (argv.clipboard) {
+      var clipboardContent = clipboard.paste()
+      if (clipboardContent) {
+        inbox.sendText(clipboardContent)
+      }
+    }
     else if (argv.view) {
       var listing = fs.readdirSync(inbox.path)
       listing = listing.filter(f => /\.(md|txt)$/.test(f))
