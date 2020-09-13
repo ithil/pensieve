@@ -387,7 +387,7 @@ yargs.command({
         .prompt([
           {
             type: 'multiselect',
-            message: 'Select tags',
+            message: `Select tags for ${note.name}`,
             name: 'newTags',
             pageSize: 20,
             initial: tags,
@@ -562,7 +562,7 @@ yargs.command({
       enquirer.prompt([{
         type: 'autocomplete',
         name: 'icon',
-        message: 'Select an icon for tag: ',
+        message: `Select an icon for tag #${argv.tag}: `,
         choices: [],
         suggest: async (input, choices) => {
           return emoj(input).map(e => {
