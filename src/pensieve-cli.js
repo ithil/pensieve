@@ -95,59 +95,55 @@ yargs.command({
     if (argv.new) {
       var sampleCJ = pensieve.utils.createNewCollectionJson()
       var options = {}
-      enquirer
-      .prompt([
-        {
-          type: 'input',
-          name: 'name',
-          message: 'What should the collection be called?',
-          default: sampleCJ.name,
-        },
-      ])
-      .then(answers1 => {
-        enquirer
-        .prompt([
+      var form = new enquirer.Form({
+        name: 'newCollection',
+        message: 'Create a new collection',
+        choices: [
           {
-            type: 'input',
+            name: 'name',
+            message: 'Name',
+            initial: sampleCJ.name,
+          },
+          {
             name: 'dir',
-            message: 'Where should the collection be located?',
-            default: path.join(process.cwd(), answers1.name),
+            message: 'Location',
+            onChoice(state, choice, i) {
+              let { name } = this.values
+              choice.initial = path.join(process.cwd(), name||'')
+            }
           },
           {
-            type: 'input',
             name: 'allFolder',
-            message: 'Path of All folder?',
-            default: sampleCJ.paths.all,
+            message: 'Path of All folder',
+            initial: sampleCJ.paths.all,
           },
           {
-            type: 'input',
             name: 'inboxFolder',
-            message: 'Path of Inbox folder?',
-            default: sampleCJ.paths.inbox,
+            message: 'Path of Inbox folder',
+            initial: sampleCJ.paths.inbox,
           },
           {
-            type: 'input',
             name: 'archiveFolder',
-            message: 'Path of Archive folder?',
-            default: sampleCJ.paths.archive,
+            message: 'Path of Archive folder',
+            initial: sampleCJ.paths.archive,
           },
-        ])
-        .then(answers2 => {
-          try {
-            pensieve.newCollection(answers2.dir, {
-              name: answers1.name,
-              paths: {
-                ...sampleCJ.paths,
-                all: answers2.allFolder,
-                inbox: answers2.inboxFolder,
-                archive: answers2.archiveFolder,
-              }
-            })
-          }
+        ]
+      })
+      form.run().then(answers => {
+        try {
+          pensieve.newCollection(answers.dir, {
+            name: answers.name,
+            paths: {
+              ...sampleCJ.paths,
+              all: answers.allFolder,
+              inbox: answers.inboxFolder,
+              archive: answers.archiveFolder,
+            }
+          })
+        }
           catch (e) {
             errorHandler(e)
           }
-        })
       })
     }
     if (argv.paths) {
