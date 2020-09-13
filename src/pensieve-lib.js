@@ -122,7 +122,7 @@ function newCollection(dir, options) {
         !fs.existsSync(p) && fs.mkdirSync(p, { recursive: true })
       }
       fs.writeFileSync(path.join(dir, '.collection.json'), JSON.stringify(collectionJson, null, ' '), 'utf8')
-      return new NoteCollection('', dir)
+      return new NoteCollection(dir)
     }
   }
   finally {
@@ -135,8 +135,7 @@ function newCollection(dir, options) {
 }
 
 class NoteCollection{
-  constructor(name, dir) {
-    this.name = name
+  constructor(dir) {
     try {
       this.collectionJsonPath = utils.searchCollectionJson(dir)
       this.collectionJson = JSON.parse(fs.readFileSync(this.collectionJsonPath))

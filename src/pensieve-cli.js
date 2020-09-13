@@ -70,7 +70,7 @@ yargs.command({
   describe: 'Open a note in default Markdown app',
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -154,7 +154,7 @@ yargs.command({
       var key = argv.paths[0]
       var newPath = argv.paths[1]
       try {
-        var collection = new NoteCollection('')
+        var collection = new NoteCollection(process.cwd())
       }
       catch (e) {
         errorHandler(e)
@@ -171,7 +171,7 @@ yargs.command({
   describe: 'Add new note',
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -191,7 +191,7 @@ yargs.command({
   describe: 'Edit a note',
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -208,7 +208,7 @@ yargs.command({
   describe: 'Remove note(s)',
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -245,7 +245,7 @@ yargs.command({
   describe: 'Change the label of a note',
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -262,7 +262,7 @@ yargs.command({
   describe: 'Put a note in a category',
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -302,7 +302,7 @@ yargs.command({
   },
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -429,7 +429,7 @@ yargs.command({
   },
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -501,7 +501,7 @@ yargs.command({
   describe: 'Return a list of notes tagged with all provided tags',
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -523,7 +523,7 @@ yargs.command({
   },
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -588,7 +588,7 @@ yargs.command({
   },
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -619,7 +619,7 @@ yargs.command({
   describe: 'Show fragments stickered with tags',
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -646,7 +646,7 @@ yargs.command({
   describe: 'Send something to the inbox',
   handler: function(argv) {
     try {
-      var collection = new NoteCollection('')
+      var collection = new NoteCollection(process.cwd())
     }
     catch (e) {
       errorHandler(e)
@@ -655,6 +655,7 @@ yargs.command({
     if (argv.text) {
       inbox.sendText(argv.text)
     }
+    else if (argv.clipboard) {
     else if (argv.view) {
       var listing = fs.readdirSync(inbox.path)
       listing = listing.filter(f => /\.(md|txt)$/.test(f))
