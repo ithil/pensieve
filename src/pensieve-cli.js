@@ -258,8 +258,13 @@ yargs.command({
 })
 
 yargs.command({
-  command: 'category <note> <category>',
+  command: 'category [note] [category]',
   describe: 'Put a note in a category',
+  builder: {
+    auto: {
+      describe: 'Automatically categorize notes',
+    },
+  },
   handler: function(argv) {
     try {
       var collection = new NoteCollection(process.cwd())
@@ -267,9 +272,14 @@ yargs.command({
     catch (e) {
       errorHandler(e)
     }
-    note = collection.resolveToNote(argv.note)
-    if (note) {
-      collection.categorize(note, argv.category)
+    if (argv.auto) {
+      collection.autoCategorize(collection.allNotes)
+    }
+    else {
+      note = collection.resolveToNote(argv.note)
+      if (note) {
+        collection.categorize(note, argv.category)
+      }
     }
   }
 })

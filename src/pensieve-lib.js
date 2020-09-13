@@ -181,15 +181,39 @@ class NoteCollection{
   categorize(note, category) {
     var contentPath = note.contentPath
     var catPath = path.join(this.path, category) //Maybe use a separate this.paths.category in the future?
+    var linkPath = path.join(catPath, note.filename)
     try {
       !fs.existsSync(catPath) && fs.mkdirSync(catPath, { recursive: true })
-      fs.symlinkSync(contentPath, path.join(catPath, note.filename))
+      !fs.existsSync(linkPath) && fs.symlinkSync(contentPath, linkPath)
     }
     catch (e) {
       var err = new Error(`Can't put note ${note.filename} into category ${category}`)
       err.name = 'categorizationError'
       err.stack = e.stack
       throw err
+    }
+  }
+  autoCategorize(notes) {
+    var rulesPath = path.join(this.path, '.autoCategorize.json')
+    if (fs.existsSync(rulesPath)) {
+      var autoCategorizeJson = JSON.parse(fs.readFileSync(rulesPath))
+      var rules = autoCategorizeJson.rules
+      for (var n of notes) {
+        for (var r of rules) {
+          if(r.hasTags.every(t => n.metadata.tags.includes(t))) {
+            for (var c of r.categorize) {
+              this.categorize(n, c)
+            }
+          }
+        }
+      }
+    }
+    else {
+      var autoCategorizeJson = {
+        "version": pVersion,
+        "rules": [],
+      }
+      fs.writeFileSync(rulesPath, JSON.stringify(autoCategorizeJson, null, ' '), 'utf8')
     }
   }
   getNoteById(id) {
