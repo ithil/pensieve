@@ -690,9 +690,16 @@ yargs.command({
         console.log(content)
       }
     }
-    else {
+    else if (!process.stdin.isTTY) {
       var text = fs.readFileSync(0, 'utf-8')
       text && inbox.sendText(text)
+    }
+    else {
+      fs.writeFileSync('/tmp/pensieveSendToInbox.md', '', 'utf8')
+      openInEditor('/tmp/pensieveSendToInbox.md', c => {
+        var text = fs.readFileSync('/tmp/pensieveSendToInbox.md', 'utf8')
+        text && inbox.sendText(text)
+      })
     }
   }
 })
