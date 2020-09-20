@@ -165,6 +165,11 @@ yargs.command({
 yargs.command({
   command: 'new [label]',
   describe: 'Add new note',
+  builder: {
+    wizard: {
+      describe: 'Specify label, tags and more',
+    },
+  },
   handler: function(argv) {
     try {
       var collection = new NoteCollection(process.cwd())
@@ -172,13 +177,52 @@ yargs.command({
     catch (e) {
       errorHandler(e)
     }
-    if (argv.label) {
-      var note = collection.newNote(argv.label)
+    if (argv.wizard) {
+      var prospectiveId = collection.getHighestId() + 1
+      var form = new enquirer.Form({
+        name: 'newNote',
+        message: 'Create a new note',
+        choices: [
+          {
+            name: 'id',
+            message: 'Prospective Id',
+            initial: prospectiveId,
+            disabled: true,
+            hint: '',
+          },
+          {
+            name: 'label',
+            message: 'Label',
+            initial: pensieve.utils.createLabelFromId(prospectiveId),
+          },
+          {
+            name: 'tags',
+            message: 'Tags',
+          },
+          {
+            name: 'category',
+            message: 'Category',
+          },
+        ]
+      })
+      form.run().then(answers => {
+        var note = collection.newNote(answers.label)
+        note.addTags(answers.tags.split(/\s+/).filter(x => x != ''))
+        note.save()
+        if (answers.category) {
+          collection.categorize(note, answers.category)
+        }
+      })
     }
     else {
-      var note = collection.newNote()
+      if (argv.label) {
+        var note = collection.newNote(argv.label)
+      }
+      else {
+        var note = collection.newNote()
+      }
+      openInEditor(note.contentPath)
     }
-    openInEditor(note.contentPath)
   }
 })
 
