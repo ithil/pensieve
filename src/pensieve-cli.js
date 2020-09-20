@@ -26,8 +26,16 @@ function openInEditor(file, callback) {
 }
 
 function* arrIterator(arr) {
-  for (i of arr) {
-    yield i
+  var len = arr.length
+  var i = 0
+  var dir = 1
+  while (i < len) {
+    dir = yield arr[i]
+    dir = dir || 1
+    i = i + dir
+    if (i < 0) {
+      i = len + i
+    }
   }
 }
 
@@ -63,6 +71,263 @@ function searchForNote(collection, cb) {
   }]).then(function(answer) {
     cb(answer.note)
   })
+}
+
+function manageInbox(inbox) {
+  var listing = fs.readdirSync(inbox.path)
+  listing = listing.filter(f => /\.(md|txt)$/.test(f))
+  var manageLoop = function() {
+    var it = arrIterator(listing)
+    var selectedFiles = []
+    var nextFile = function(dir) {
+      var result = it.next(dir)
+      if (!result.done && result.value) {
+        manageFile(result.value)
+      }
+      else {
+        manageSelectedFiles(selectedFiles)
+      }
+    }
+    var manageFile = function(f) {
+      var fullPath = path.join(inbox.path, f)
+      var content = fs.readFileSync(fullPath, 'utf-8')
+      process.stdout.write(colors.green(`(${listing.indexOf(f)+1}/${listing.length}): `))
+      console.log(colors.red(f))
+      console.log(content)
+      enquirer.prompt({
+        type: 'input',
+        name: 'action',
+        message: '[d]elete [e]dit [i]nsert [m]ove [s]elect | [n]ext [p]revious | [q]uit',
+        validate: (value) => {
+          if (!['d', 't', 'e', 'i', 'm', 's', 'n', 'p', 'q'].includes(value.trim().toLowerCase())) {
+            return false
+          }
+          return true
+        },
+      })
+      .then((answer) => {
+        var action = answer.action.trim()
+        if (action == 'd') {
+          enquirer
+          .prompt([
+            {
+              name: "remove",
+              type: "confirm",
+              message: `Are you sure you want to remove ${f}?`,
+            },
+          ])
+          .then((answer) => {
+            if (answer.remove) {
+              fs.unlinkSync(fullPath)
+            }
+            nextFile()
+          })
+        }
+        else if (action == 'm') {
+          var moveFromInboxPath = inbox.collection.paths.moveFromInbox
+          if (fs.existsSync(moveFromInboxPath)) {
+            fs.copyFile(fullPath, path.join(moveFromInboxPath, f), function (err) {
+              if (err) {
+                throw err
+              }
+              else {
+                fs.unlinkSync(fullPath)
+              }
+              nextFile()
+            })
+          }
+        }
+        else if (action == 'e') {
+          openInEditor(fullPath,(code) =>{
+            nextFile()
+          })
+        }
+        else if (action == 'i') {
+          searchForNote(inbox.collection, (note) => {
+            insertInNote(note, content, (newContent) => {
+              enquirer
+              .prompt([
+                {
+                  name: "remove",
+                  type: "confirm",
+                  message: `Now delete ${f}?`,
+                },
+              ])
+              .then((answer) => {
+                if (answer.remove) {
+                  fs.unlinkSync(fullPath)
+                }
+                nextFile()
+              })
+              .catch(console.error)
+            })
+          })
+        }
+        else if (action == 's') {
+          selectedFiles.push({
+            file: f,
+            fullPath: fullPath,
+            content: content,
+          })
+          nextFile()
+        }
+        else if (action == 'n') {
+          nextFile()
+        }
+        else if (action == 'p') {
+          nextFile(-1)
+        }
+        else if (action == 'q') {
+          return
+        }
+      })
+    }
+    nextFile()
+  }
+  var manageSelectedFiles = function(selection) {
+    var mergeTogether = function(selection) {
+      var mergedContent = ''
+      for (var s of selection) {
+        mergedContent = mergedContent + (mergedContent ? '\n' : '') + s.file + '\n'
+        mergedContent = mergedContent + s.content.trim() + '\n'
+      }
+      return mergedContent
+    }
+    var removeSelectedFiles = function(selection) {
+      enquirer
+      .prompt([
+        {
+          name: "remove",
+          type: "confirm",
+          message: `Now delete ${selection.map(s => s.file).join(', ')}?`,
+        },
+      ])
+      .then((answer) => {
+        if (answer.remove) {
+          for (var s of selection) {
+            fs.unlinkSync(s.fullPath)
+          }
+        }
+      })
+      .catch(console.error)
+    }
+    console.log('Selected files: ')
+    for (var s of selection) {
+      var {file, content} = s
+      console.log(colors.red(file))
+      console.log(content.length < 60 ? content : content.slice(0, 60)+'...')
+    }
+    enquirer.prompt({
+      type: 'input',
+      name: 'action',
+      message: '[m]erge into new note, [c]ombine in inbox | [a]bort',
+      validate: (value) => {
+        if (!['m', 'c', 'a'].includes(value.trim().toLowerCase())) {
+          return false
+        }
+        return true
+      },
+    })
+    .then((answer) => {
+      var action = answer.action
+      if (action == 'a') {
+        return
+      }
+      else if (action == 'c') {
+        var mergedContent = mergeTogether(selection)
+        enquirer.prompt({
+          type: 'input',
+          name: 'name',
+          message: 'Name of new fleeting note inbox?',
+        })
+        .then((answer) => {
+          var filename = answer.name.endsWith('.md') ? answer.name : answer.name + '.md'
+          var filepath = inbox.sendText(mergedContent, filename)
+          openInEditor(filepath, (code) => {
+            removeSelectedFiles(selection)
+          })
+        })
+        .catch(console.error)
+      }
+      else if (action == 'm') {
+        var mergedContent = mergeTogether(selection)
+        newNoteWizard(inbox.collection, (note) => {
+          note.setContent(mergedContent)
+          openInEditor(note.contentPath, (code) => {
+            removeSelectedFiles(selection)
+          })
+        })
+      }
+    })
+    .catch(console.error)
+  }
+  manageLoop()
+}
+
+function insertInNote(note, insertion, cb) {
+  var content = note.content
+  var lines = content.split(/\n/)
+
+  enquirer.prompt({
+    type: 'select',
+    name: 'line',
+    message: 'Where to append line?',
+    hint: `${insertion.length < 30 ? insertion : insertion.slice(0, 30) + '...'} (${insertion.length} c)`,
+    limit: 10,
+    // index: 4,
+    choices: [{role: 'separator', message: `== ${note.name} ==`},
+    ...lines.map((l, i) => ({
+      name: i+1,
+      message: l ? l : ' '
+    }))]
+  })
+  .then(function(answer = []) {
+    var line = answer.line
+    console.log(`Insert in line ${line} of ${note.name}:`)
+    console.log(insertion)
+    enquirer.prompt({
+      type: 'input',
+      name: 'action',
+      message: '[r]aw [b]ullet [e]dit | [a]bort',
+      validate: (value) => {
+        if (!['r', 'b', 'e', 'a'].includes(value.trim().toLowerCase())) {
+          return false
+        }
+        return true
+      },
+    })
+    .then((answer) => {
+      // console.log(answer)
+      var action = answer.action
+      var insertLine = function(ins) {
+        lines.splice(line, 0, ins)
+        return lines.join('\n')
+      }
+      if (action == 'a') {
+        cb()
+        return
+      }
+      else if (action=='e') {
+        var editPath = '/tmp/pensieveInsertion.md'
+        fs.writeFileSync(editPath, insertion, 'utf8')
+        openInEditor(editPath,(code) =>{
+          var insertion = fs.readFileSync(editPath, 'utf8')
+          note.setContent(insertLine(insertion))
+          cb()
+        })
+      }
+      else if (action = 'b') {
+        insertion = insertion.split('\n').map(l => l ? `* ${l}` : '').join('\n')
+        note.setContent(insertLine(insertion))
+        cb()
+      }
+      else if (action == 'r') {
+        note.setContent(insertLine(insertion))
+        cb()
+      }
+    })
+  })
+  .catch(console.error)
 }
 
 yargs.command({
@@ -162,6 +427,47 @@ yargs.command({
   }
 })
 
+function newNoteWizard(collection, cb) {
+  var prospectiveId = collection.getHighestId() + 1
+  var form = new enquirer.Form({
+    name: 'newNote',
+    message: 'Create a new note',
+    choices: [
+      {
+        name: 'id',
+        message: 'Prospective Id',
+        initial: prospectiveId,
+        disabled: true,
+        hint: '',
+      },
+      {
+        name: 'label',
+        message: 'Label',
+        initial: pensieve.utils.createLabelFromId(prospectiveId),
+      },
+      {
+        name: 'tags',
+        message: 'Tags',
+      },
+      {
+        name: 'category',
+        message: 'Category',
+      },
+    ]
+  })
+  form.run().then(answers => {
+    var note = collection.newNote(answers.label)
+    note.addTags(answers.tags.split(/\s+/).filter(x => x != ''))
+    note.save()
+    if (answers.category) {
+      collection.categorize(note, answers.category)
+    }
+    if(cb) {
+      cb(note)
+    }
+  })
+}
+
 yargs.command({
   command: 'new [label]',
   describe: 'Add new note',
@@ -178,41 +484,7 @@ yargs.command({
       errorHandler(e)
     }
     if (argv.wizard) {
-      var prospectiveId = collection.getHighestId() + 1
-      var form = new enquirer.Form({
-        name: 'newNote',
-        message: 'Create a new note',
-        choices: [
-          {
-            name: 'id',
-            message: 'Prospective Id',
-            initial: prospectiveId,
-            disabled: true,
-            hint: '',
-          },
-          {
-            name: 'label',
-            message: 'Label',
-            initial: pensieve.utils.createLabelFromId(prospectiveId),
-          },
-          {
-            name: 'tags',
-            message: 'Tags',
-          },
-          {
-            name: 'category',
-            message: 'Category',
-          },
-        ]
-      })
-      form.run().then(answers => {
-        var note = collection.newNote(answers.label)
-        note.addTags(answers.tags.split(/\s+/).filter(x => x != ''))
-        note.save()
-        if (answers.category) {
-          collection.categorize(note, answers.category)
-        }
-      })
+      newNoteWizard(collection)
     }
     else {
       if (argv.label) {
@@ -707,6 +979,10 @@ yargs.command({
       describe: 'View the inbox',
       type: 'boolean',
     },
+    "manage": {
+      describe: 'Manage the inbox',
+      type: 'boolean',
+    },
   },
   handler: function(argv) {
     try {
@@ -733,6 +1009,9 @@ yargs.command({
         console.log(colors.red(f))
         console.log(content)
       }
+    }
+    else if (argv.manage) {
+      manageInbox(inbox)
     }
     else if (!process.stdin.isTTY) {
       var text = fs.readFileSync(0, 'utf-8')

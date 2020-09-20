@@ -403,6 +403,10 @@ class Note{
       return false
     }
   }
+  setContent(newContent) {
+    this.content = newContent
+    fs.writeFileSync(this.contentPath, newContent, 'utf8')
+  }
   addTag(tag) {
     var tags = this.metadata.tags
     if (!tags.includes(tag)) {
@@ -432,11 +436,14 @@ class Note{
 
 class Inbox{
   constructor(collection) {
+    this.collection = collection
     this.path = collection.paths.inbox
   }
-  sendText(text) {
-    var filepath = path.join(this.path, `${moment().format('YYYY-MM-DD HH,mm,ss')}.md`)
+  sendText(text, filename) {
+    filename = filename || `${moment().format('YYYY-MM-DD HH,mm,ss')}.md`
+    var filepath = path.join(this.path, filename)
     fs.writeFileSync(filepath, text, 'utf8')
+    return filepath
   }
   sendFile(filepath, cwd='') {
     var srcFilepath = path.resolve(cwd, filepath)
