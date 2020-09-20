@@ -117,7 +117,7 @@ function newCollection(dir, options) {
       for (var k in collectionJson.paths) {
         var p = collectionJson.paths[k]
         if (!path.isAbsolute(p)) {
-          p = path.join(dir, p)
+          p = path.resolve(dir, p)
         }
         !fs.existsSync(p) && fs.mkdirSync(p, { recursive: true })
       }
@@ -140,7 +140,7 @@ class NoteCollection{
       this.collectionJsonPath = utils.searchCollectionJson(dir)
       this.collectionJson = JSON.parse(fs.readFileSync(this.collectionJsonPath))
       this.path = path.dirname(this.collectionJsonPath)
-      this.paths = utils.objectMap(this.collectionJson.paths, p => path.join(this.path, p))
+      this.paths = utils.objectMap(this.collectionJson.paths, p => path.resolve(this.path, p))
       this.allNotes = this.getAllNotes()
     }
     catch (e) {
