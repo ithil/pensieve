@@ -84,7 +84,7 @@ function manageInbox(inbox) {
       if (!result.done && result.value) {
         manageFile(result.value)
       }
-      else {
+      else if (selectedFiles.length > 0) {
         manageSelectedFiles(selectedFiles)
       }
     }
