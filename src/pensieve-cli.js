@@ -331,7 +331,7 @@ function insertInNote(note, insertion, cb) {
 }
 
 yargs.command({
-  command: 'open',
+  command: 'open [note]',
   describe: 'Open a note in default Markdown app',
   handler: function(argv) {
     try {
@@ -340,7 +340,15 @@ yargs.command({
     catch (e) {
       errorHandler(e)
     }
-    searchForNote(collection, n => openFileExternally(n.contentPath))
+    if(argv.note) {
+      var note = collection.resolveToNote(argv.note)
+      if (note) {
+        openFileExternally(note.contentPath)
+      }
+    }
+    else {
+      searchForNote(collection, n => openFileExternally(n.contentPath))
+    }
   }
 })
 
