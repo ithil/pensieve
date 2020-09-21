@@ -174,9 +174,9 @@ class NoteCollection{
     label = label || utils.createLabelFromId(id)
     var contentPath = path.join(this.paths.all, `${id}.${label}.md`)
     var metadataPath = path.join(this.paths.all, `.${id}.json`)
-    fs.writeFileSync(metadataPath, JSON.stringify(utils.createEmptyMetadata(id)), 'utf8')
+    fs.writeFileSync(metadataPath, JSON.stringify(utils.createEmptyMetadata(id), null, ' '), 'utf8')
     fs.writeFileSync(contentPath, '', 'utf8')
-    return new Note(contentPath)
+    return new Note(contentPath, this)
   }
   categorize(note, category) {
     var contentPath = note.contentPath
@@ -222,7 +222,7 @@ class NoteCollection{
       var match = filenameRegex.exec(f)
       if (match && match[2] == String(id)) {
         var contentPath = path.join(this.paths.all, match[0])
-        return new Note(contentPath)
+        return new Note(contentPath, this)
       }
     }
   }
@@ -232,7 +232,7 @@ class NoteCollection{
     var match = filenameRegex.exec(filename)
     if (match && fs.existsSync(filepath)) {
       var contentPath = path.join(this.paths.all, match[0])
-      return new Note(contentPath)
+      return new Note(contentPath, this)
     }
   }
   getNotesByLabel(label) {
@@ -242,7 +242,7 @@ class NoteCollection{
       var match = filenameRegex.exec(f)
       if (match && match[3] == String(label)) {
         var contentPath = path.join(this.paths.all, match[0])
-        notes.push(new Note(contentPath))
+        notes.push(new Note(contentPath, this))
       }
     }
     return notes
@@ -366,12 +366,38 @@ class NoteCollection{
     allTags.filter(t => t)
     return Array.from(new Set(allTags))
   }
+  repairSymLinks(renameFiles) {
+    var thisCollection = this
+    var walk = function (dir) {
+      const dirents = fs.readdirSync(dir, {withFileTypes: true})
+      const files = dirents.map((dirent) => {
+        const res = path.resolve(dir, dirent.name)
+        if (dirent.isSymbolicLink()) {
+          var linkedPath = fs.readlinkSync(res)
+          var match = filenameRegex.exec(path.basename(linkedPath))
+          if (match && !fs.existsSync(linkedPath)) {
+            fs.unlinkSync(res)
+            var id = match[2]
+            var note = thisCollection.getNoteById(id)
+            if (note) {
+              fs.symlinkSync(note.contentPath, renameFiles ? path.join(path.dirname(res), path.basename(note.contentPath)) : res)
+            }
+          }
+        }
+        else if (dirent.isDirectory()) {
+          walk(res)
+        }
+      })
+    }
+    walk(this.path)
+  }
   saveCollectionJson() {
     fs.writeFileSync(this.collectionJsonPath, JSON.stringify(this.collectionJson, null, ' '), 'utf8')
   }
 }
 class Note{
-  constructor(contentPath) {
+  constructor(contentPath, collection) {
+    this.collection = collection
     this.contentPath = contentPath
     this.filename = path.basename(contentPath)
     var match = filenameRegex.exec(this.filename)
@@ -387,6 +413,7 @@ class Note{
     var newContentPath = path.join(path.dirname(this.contentPath), `${this.id}.${newLabel}.${fileEnding}`)
     fs.renameSync(this.contentPath, newContentPath)
     this.contentPath = newContentPath
+    this.collection.repairSymLinks()
     return newContentPath
   }
   get name() {
