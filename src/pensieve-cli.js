@@ -70,11 +70,20 @@ function searchForNote(collection, cb) {
           list.push({message: n.item.name, name: n.item.name, value: n.item})
         }
       }
+      list.push({message: colors.green.bold('+ New note'), name: 'newNote', value: 'newNote' })
       return list
     }
   }]).then(function(answer) {
-    cb(answer.note)
+    if (answer.note == 'newNote') {
+      newNoteWizard(collection, (n) => {
+        cb(n)
+      })
+    }
+    else {
+      cb(answer.note)
+    }
   })
+  .catch(console.error)
 }
 
 function manageInbox(inbox) {
