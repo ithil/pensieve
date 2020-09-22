@@ -306,6 +306,21 @@ class NoteCollection{
     }
     return results
   }
+  getAllStickers(notes) {
+    var notes = notes || this.getAllNotes()
+    var stickers = []
+    for (var n of notes) {
+      var inlines = utils.tokenizeMarkdown(n.content)
+      for (var i of inlines) {
+        var match = stickerRegex.exec(i.content)
+        if (match) {
+          var theseStickers = match[1].split(tagRegex).filter(s => s.trim().length > 0)
+          stickers = stickers.concat(theseStickers)
+        }
+      }
+    }
+    return stickers
+  }
   stickered(tags) {
     var notes = this.getAllNotes()
     var results = {}
@@ -326,6 +341,80 @@ class NoteCollection{
       }
     }
     return results
+  }
+  createTagPage(tag) {
+    var tagPagePath = path.join(this.paths.all, `#${tag}.md`)
+    var stickered = this.stickered([tag])
+    var tagged = this.getNotesByTags([tag])
+    var createTaggedSection = function() {
+      var section = []
+      if (tagged.length > 0) {
+        section.push('## Tagged notes')
+        for (var n of tagged) {
+          section.push(`* [${n.name}](${n.filename})`)
+        }
+        section.push('\n')
+      }
+      return section.join('\n')
+    }
+    var createStickeredSection = function() {
+      var section = []
+      if (Object.keys(stickered).length > 0) {
+        section.push('## Stickered fragments')
+        for (var file in stickered) {
+          var inlines = stickered[file]
+          section.push(`### [${path.basename(file)}](${file})`)
+          for (var l of inlines) {
+            section.push(`* (Line ${l.line ? l.line : '?'})`)
+            section.push(`  > ${l.content}`)
+            section.push('\n')
+          }
+        }
+        section.push('\n')
+      }
+      return section.join('\n')
+    }
+    var updateSection = function(section, content, sectionContent) {
+      var lines = content.split('\n')
+      var headerLine = lines.findIndex(l => l.startsWith(section))
+      var nextHeaderLine = lines.slice(headerLine+1).findIndex(l => l.startsWith('## '))
+      nextHeaderLine = nextHeaderLine > -1 ? nextHeaderLine+headerLine+1 : undefined
+
+      var newLines = [...lines.slice(0, headerLine), sectionContent, ...(nextHeaderLine ? lines.slice(nextHeaderLine) : [])]
+      var newFile = newLines.join('\n')
+      return newFile
+    }
+    if (fs.existsSync(tagPagePath)) {
+      var tagPage = fs.readFileSync(tagPagePath, 'utf8')
+      var tagPageLines = tagPage.split('\n')
+      if (tagPageLines.find(l => l.startsWith('## Tagged notes'))) {
+        tagPage = updateSection('## Tagged notes', tagPage, createTaggedSection())
+      }
+      else {
+        tagPage = tagPage + '\n' + createTaggedSection()
+      }
+      if (tagPageLines.find(l => l.startsWith('## Stickered fragments'))) {
+        tagPage = updateSection('## Stickered fragments', tagPage, createStickeredSection())
+      }
+      else {
+        tagPage = tagPage + '\n' + createStickeredSection()
+      }
+      fs.writeFileSync(tagPagePath, tagPage, 'utf8')
+    }
+    else {
+      var tagPageLines = [`# \\#${tag}`]
+      tagPageLines.push(createTaggedSection())
+      tagPageLines.push(createStickeredSection())
+      var tagPage = tagPageLines.join('\n')
+      fs.writeFileSync(tagPagePath, tagPage, 'utf8')
+    }
+    return tagPage
+  }
+  createTagPages(tags) {
+    tags = tags || Array.from(new Set(this.getAllTags().concat(this.getAllStickers())))
+    for (var t of tags) {
+      this.createTagPage(t)
+    }
   }
   getTagTree(notes) {
     notes = notes || this.getAllNotes()

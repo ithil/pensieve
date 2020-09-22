@@ -844,11 +844,14 @@ yargs.command({
 })
 
 yargs.command({
-  command: 'tags <tag>',
+  command: 'tags [tag]',
   describe: 'Organize tag metadata',
   builder: {
     "icon": {
       describe: 'Change icon',
+    },
+    "pages": {
+      describe: 'Update Tag pages',
     }
   },
   handler: function(argv) {
@@ -859,6 +862,9 @@ yargs.command({
       errorHandler(e)
     }
     var tagMetadata = new pensieve.Tags(collection)
+    if (argv.pages) {
+      collection.createTagPages()
+    }
     if (argv.icon) {
       const emoj = input => {
         input = input || ''
