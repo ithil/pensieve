@@ -39,6 +39,10 @@ function* arrIterator(arr) {
   }
 }
 
+function drawHorizontalLine() {
+  console.log('_'.repeat(process.stdout.columns))
+}
+
 function openFileExternally(filepath) {
   var cmd
   switch (process.platform) {
@@ -91,6 +95,7 @@ function manageInbox(inbox) {
     var manageFile = function(f) {
       var fullPath = path.join(inbox.path, f)
       var content = fs.readFileSync(fullPath, 'utf-8')
+      drawHorizontalLine()
       process.stdout.write(colors.green(`(${listing.indexOf(f)+1}/${listing.length}): `))
       console.log(colors.red(f))
       console.log(content)
