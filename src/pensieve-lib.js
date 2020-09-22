@@ -329,6 +329,7 @@ class NoteCollection{
       var newInlines = []
       for (var i of inlines) {
         var match = stickerRegex.exec(i.content)
+        stickerRegex.lastIndex = 0
         if (match) {
           var stickers = match[1].split(tagRegex).filter(s => s.trim().length > 0)
           if (tags.every(t => stickers.includes(t))) {
