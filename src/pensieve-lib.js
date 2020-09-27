@@ -3,6 +3,7 @@ const path = require('path')
 const MarkdownIt = require('markdown-it')
 var md = new MarkdownIt()
 const moment = require('moment')
+const unorm = require('unorm')
 const Fuse = require('fuse.js')
 
 const pVersion = '0.1'
@@ -240,7 +241,7 @@ class NoteCollection{
     var notes = []
     for (var f of listing) {
       var match = filenameRegex.exec(f)
-      if (match && match[3] == String(label)) {
+      if (match && unorm.nfd(match[3]) == unorm.nfd(String(label))) {
         var contentPath = path.join(this.paths.all, match[0])
         notes.push(new Note(contentPath, this))
       }
