@@ -6,7 +6,7 @@ const moment = require('moment')
 const Fuse = require('fuse.js')
 
 const pVersion = '0.1'
-var filenameRegex = /^((\d+)[0-9a-z]*)\.([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF]+)\.(md|html|rtf)/m
+var filenameRegex = /^((\d+)[0-9a-z]*)\.([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF\. ]+)\.(md|html|rtf)/m
 // TODO: filenameRegex needs to be defined more dynamically
 var identifierRegex = /([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF\.]+)/
 var tagRegex = new RegExp(`#${identifierRegex.source}`)
