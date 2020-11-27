@@ -95,7 +95,12 @@ function manageInbox(inbox) {
     var nextFile = function(dir) {
       var result = it.next(dir)
       if (!result.done && result.value) {
-        manageFile(result.value)
+        if (fs.existsSync(path.join(inbox.path, result.value))) {
+          manageFile(result.value)
+        }
+        else {
+          nextFile(dir)
+        }
       }
       else if (selectedFiles.length > 0) {
         manageSelectedFiles(selectedFiles)
@@ -192,7 +197,12 @@ function manageInbox(inbox) {
           nextFile(-1)
         }
         else if (action == 'q') {
-          return
+          if (selectedFiles.length > 0) {
+            manageSelectedFiles(selectedFiles)
+          }
+          else {
+            return
+          }
         }
       })
     }
