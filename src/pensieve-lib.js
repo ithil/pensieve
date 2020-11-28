@@ -8,6 +8,8 @@ const Fuse = require('fuse.js')
 
 const pVersion = '0.1'
 var filenameRegex = /^((\d+)[0-9a-z]*)\.([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF\. ]+)\.(md|html|rtf)/m
+const adjectives = require('./assets/adjectives.js')
+const nouns = require('./assets/nouns.js')
 // TODO: filenameRegex needs to be defined more dynamically
 var identifierRegex = /([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF\.]+)/
 var tagRegex = new RegExp(`#${identifierRegex.source}`)
@@ -53,10 +55,8 @@ var utils = {
       )
     )
   },
-  adjectives: fs.readFileSync(path.join(__dirname, '../assets/adjectives.txt'), 'utf8')
-    .split('\n').filter(s => s != ''),
-  nouns: fs.readFileSync(path.join(__dirname, '../assets/nouns.txt'), 'utf8')
-    .split('\n').filter(s => s != ''),
+ adjectives: adjectives,
+ nouns: nouns,
   createLabelFromId(id) {
     // This function needs to be rewritten, it's doing weird things
     id = Number(id) - 1
