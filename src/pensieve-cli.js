@@ -583,6 +583,24 @@ yargs.command({
       })
   }
 })
+yargs.command({
+  command: 'commit',
+  describe: 'Commit changes',
+  handler: function(argv) {
+    try {
+      var collection = new NoteCollection(process.cwd())
+    }
+    catch (e) {
+      errorHandler(e)
+    }
+    if (collection.collectionJson.useGit) {
+      collection.commit()
+    }
+    else {
+      console.log("This collection doesn't have version control enabled.")
+    }
+  }
+})
 
 yargs.command({
   command: 'label <note> <label>',

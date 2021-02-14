@@ -5,17 +5,20 @@ var md = new MarkdownIt()
 const moment = require('moment')
 const unorm = require('unorm')
 const Fuse = require('fuse.js')
+const git = require('isomorphic-git')
+const http = require('isomorphic-git/http/node')
 
 const pVersion = '0.1'
-var filenameRegex = /^((\d+)[0-9a-z]*)\.([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF\. ]+)\.(md|html|rtf)/m
 const adjectives = require('./assets/adjectives.js')
 const nouns = require('./assets/nouns.js')
+var filenameRegex = /^((\d+)[0-9a-z]*)\.([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF\. ']+)\.(md|html|rtf)/m
 // TODO: filenameRegex needs to be defined more dynamically
 var identifierRegex = /([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF\.]+)/
 var tagRegex = new RegExp(`#${identifierRegex.source}`)
 var anchorRegex = new RegExp(`\\$${identifierRegex.source}`)
 var stickerRegex = new RegExp(`{{((\\s*${tagRegex.source}\\s*)+)}}`, 'g')
 var anchorInlineRegex = new RegExp(`{{(\\s*${anchorRegex.source}\\s*)}}`, 'g')
+var newStickerRegex = /(^|[^\\])#([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF\. ]+)#($| )|(^|[^\\])#([\w\u00C0-\u02AF\u0370-\u04FF\u00A0-\uFADF\.]+)/gm
 
 var quoteRegex = /["„“«](.+)["“”»]\s*\(([\w\. ]+)\)/g
 
@@ -87,6 +90,7 @@ var utils = {
       "pVersion": pVersion,
       "name": "My Note Collection",
       "creationDate": new Date(),
+      "useGit": true,
       "paths": {
         "all": "./All",
         "inbox": "./Inbox",
@@ -123,6 +127,27 @@ function newCollection(dir, options) {
         !fs.existsSync(p) && fs.mkdirSync(p, { recursive: true })
       }
       fs.writeFileSync(path.join(dir, '.collection.json'), JSON.stringify(collectionJson, null, ' '), 'utf8')
+      if (collectionJson.useGit) {
+        let repo = { fs, dir }
+        git.init(repo)
+        .then(() => {
+          return git.statusMatrix(repo)
+        })
+        .then((status) => {
+          Promise.all(
+            status.map(([filepath, , worktreeStatus]) => {
+              worktreeStatus ? git.add({ ...repo, filepath }) : git.remove({ ...repo, filepath })
+            })
+          )
+        })
+        .then(() => {
+          git.commit({
+            ...repo,
+            author: {name: 'Anonymous', email: 'anon@gmail.com'},
+            message: 'Created Note Collection'}
+          )
+        })
+      }
       return new NoteCollection(dir)
     }
   }
@@ -143,10 +168,49 @@ class NoteCollection{
       this.path = path.dirname(this.collectionJsonPath)
       this.paths = utils.objectMap(this.collectionJson.paths, p => path.resolve(this.path, p))
       this.allNotes = this.getAllNotes()
+      if (this.collectionJson.useGit) {
+        this.repo = { fs, dir: this.path }
+      }
     }
     catch (e) {
       throw e
     }
+  }
+  commit() {
+    var repo = this.repo
+    var commitMessage = ''
+    git.statusMatrix(repo)
+    .then((status) => {
+      Promise.all(
+        status.map(([filepath, , worktreeStatus]) => {
+          worktreeStatus ? git.add({ ...repo, filepath }) : git.remove({ ...repo, filepath })
+        })
+      )
+    })
+    .then(() => {
+      return git.statusMatrix(repo)
+    })
+    .then((status) => {
+      let FILE = 0, HEAD = 1, WORKDIR = 2, STAGE = 3
+      for (let row of status) {
+        if (!row[HEAD] && row[WORKDIR] == 2 && row[STAGE] == 2) {
+          commitMessage = commitMessage + `Add ${row[FILE]}\n`
+        }
+        else if (row[HEAD] && row[WORKDIR] == 2 && row[STAGE] == 2) {
+          commitMessage = commitMessage + `Change ${row[FILE]}\n`
+        }
+        else if (row[HEAD] && !row[WORKDIR] && !row[STAGE]) {
+          commitMessage = commitMessage + `Delete ${row[FILE]}\n`
+        }
+      }
+    })
+    .then(() => {
+      git.commit({
+        ...repo,
+        author: {name: 'Anonymous', email: 'anon@gmail.com'},
+        message: commitMessage}
+      )
+    })
   }
   fuzzySearchForNote(term) {
     term = term || ''
@@ -177,6 +241,13 @@ class NoteCollection{
     var metadataPath = path.join(this.paths.all, `.${id}.json`)
     fs.writeFileSync(metadataPath, JSON.stringify(utils.createEmptyMetadata(id), null, ' '), 'utf8')
     fs.writeFileSync(contentPath, '', 'utf8')
+
+    if (this.collectionJson.useGit) {
+      var repo = this.repo
+      git.add({...repo, filepath: path.relative(this.path, metadataPath)})
+      git.add({...repo, filepath: path.relative(this.path, contentPath)})
+    }
+
     return new Note(contentPath, this)
   }
   categorize(note, category) {
