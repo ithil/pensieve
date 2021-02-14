@@ -5,6 +5,7 @@ var md = new MarkdownIt()
 const moment = require('moment')
 const unorm = require('unorm')
 const Fuse = require('fuse.js')
+const mime = require('mime-types')
 const git = require('isomorphic-git')
 const http = require('isomorphic-git/http/node')
 
@@ -94,6 +95,7 @@ var utils = {
       "paths": {
         "all": "./All",
         "inbox": "./Inbox",
+        "stacks": "./Stacks",
         "archive": "./Archived",
         // "categories": ".",
         "cache": "./.cache",
@@ -168,6 +170,8 @@ class NoteCollection{
       this.path = path.dirname(this.collectionJsonPath)
       this.paths = utils.objectMap(this.collectionJson.paths, p => path.resolve(this.path, p))
       this.allNotes = this.getAllNotes()
+      this.inbox = new Inbox(this)
+      this.stacks = new Stacks(this)
       if (this.collectionJson.useGit) {
         this.repo = { fs, dir: this.path }
       }
@@ -627,6 +631,8 @@ class Inbox{
   constructor(collection) {
     this.collection = collection
     this.path = collection.paths.inbox
+    this.isInbox = true
+    this.isStack = false
   }
   sendText(text, filename) {
     filename = filename || `${moment().format('YYYY-MM-DD HH,mm,ss')}.md`
@@ -650,6 +656,128 @@ class Inbox{
         throw e
       }
     }
+  }
+  getList() {
+    var list = []
+    var listing = fs.readdirSync(this.path)
+    listing = listing.filter(f => /^[^\.]/.test(f))
+    for (let f of listing) {
+      let fullPath = path.join(this.path, f)
+      let item = new FleetingNote(fullPath, this.collection)
+      list.push(item)
+    }
+    return list
+  }
+}
+
+class Stacks{
+  constructor(collection) {
+    this.collection = collection
+    this.path = collection.paths.stacks
+  }
+  getStacks() {
+    var collection = this.collection
+    var getList = function(givenPath) {
+      var listing = fs.readdirSync(givenPath, {withFileTypes: true})
+      listing = listing.filter(f => /^[^\.]/.test(f.name))
+      var list = []
+      for (let i of listing) {
+        if (i.isFile()) {
+          list.push(new FleetingNote(path.join(givenPath, i.name), collection))
+        }
+        else if (i.isDirectory()) {
+          list.push(new Stack(collection, path.join(givenPath, i.name)))
+        }
+      }
+      return list
+    }
+    return getList(this.path)
+  }
+  getStackByPath(stackPath) {
+    var fullStackPath = path.join(this.collection.paths.stacks, stackPath)
+    if (fs.existsSync(fullStackPath)) {
+      return new Stack(this.collection, fullStackPath)
+    }
+    else {
+      return false
+    }
+  }
+}
+
+class Stack{
+  constructor(collection, stackPath, parent) {
+    this.collection = collection
+    this.path = stackPath
+    this.parent = parent
+    this.name = path.basename(stackPath)
+    this.isInbox = false
+    this.isStack = true
+  }
+  getContent() {
+    var collection = this.collection
+    var getList = function(givenPath) {
+      var listing = fs.readdirSync(givenPath, {withFileTypes: true})
+      listing = listing.filter(f => /^[^\.]/.test(f.name))
+      var list = []
+      for (let i of listing) {
+        if (i.isFile()) {
+          list.push(new FleetingNote(path.join(givenPath, i.name), collection))
+        }
+        else if (i.isDirectory()) {
+          list.push(new Stack(collection, path.join(givenPath, i.name), this))
+        }
+      }
+      return list
+    }
+    return getList(this.path)
+  }
+}
+
+class FleetingNote{
+  constructor(fullPath, col) {
+    this.path = fullPath
+    this.collection = col
+    this.filename = path.basename(fullPath)
+    this.mime = mime.lookup(fullPath) || 'application/octet-stream'
+    this.name = this.filename.replace(/\.[^/.]+$/, "")
+    var d = moment(this.name, 'YYYY-MM-DD HH,mm,ss')
+    if (d.isValid()) {
+      this.date = d.toDate()
+    }
+    else {
+      var { birthtime } = fs.statSync(fullPath)
+      this.date = birthtime
+    }
+  }
+  delete() {
+    fs.unlinkSync(this.path)
+    this.deleted = true
+  }
+  rename(newName) {
+    fs.renameSync(this.path, path.join(path.dirname(this.path), newName))
+  }
+  sendToStack(stack) {
+    var stackDir = path.join(this.collection.paths.stacks, stack)
+    !fs.existsSync(stackDir) && fs.mkdirSync(stackDir, { recursive: true })
+    fs.renameSync(this.path, path.join(stackDir, this.filename))
+  }
+  get isText() {
+    return this.mime.startsWith('text/')
+  }
+  get isImage() {
+    return this.mime.startsWith('image/')
+  }
+  get inInbox() {
+    return this.path.startsWith(this.collection.paths.inbox)
+  }
+  get inStacks() {
+    return this.path.startsWith(this.collection.paths.stacks)
+  }
+  get content() {
+    return fs.readFileSync(this.path, 'utf8')
+  }
+  setContent(content) {
+    fs.writeFileSync(this.path, content, 'utf8')
   }
 }
 

@@ -23,6 +23,7 @@
     "fuse.js": "^6.4.1",
     "isomorphic-git": "^1.8.0",
     "markdown-it": "^11.0.0",
+    "mime-types": "^2.1.27",
     "moment": "^2.27.0",
     "unorm": "^1.6.0",
     "yargs": "^15.4.1"

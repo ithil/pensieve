@@ -86,16 +86,20 @@ function searchForNote(collection, cb) {
   .catch(console.error)
 }
 
-function manageInbox(inbox) {
-  var listing = fs.readdirSync(inbox.path)
-  listing = listing.filter(f => /\.(md|txt)$/.test(f))
+function manageStack(stack) {
+  if (stack.isInbox) {
+    var fleetingNotes = stack.getList()
+  }
+  else if (stack.isStack) {
+    var fleetingNotes = stack.getContent()
+  }
   var manageLoop = function() {
-    var it = arrIterator(listing)
+    var it = arrIterator(fleetingNotes)
     var selectedFiles = []
     var nextFile = function(dir) {
       var result = it.next(dir)
       if (!result.done && result.value) {
-        if (fs.existsSync(path.join(inbox.path, result.value))) {
+        if (fs.existsSync(result.value.path)) {
           manageFile(result.value)
         }
         else {
@@ -107,18 +111,22 @@ function manageInbox(inbox) {
       }
     }
     var manageFile = function(f) {
-      var fullPath = path.join(inbox.path, f)
-      var content = fs.readFileSync(fullPath, 'utf-8')
+      var fullPath = f.path
       drawHorizontalLine()
-      process.stdout.write(colors.green(`(${listing.indexOf(f)+1}/${listing.length}): `))
-      console.log(colors.red(f))
-      console.log(content)
+      process.stdout.write(colors.green(`(${fleetingNotes.indexOf(f)+1}/${fleetingNotes.length}): `))
+      console.log(colors.red(f.filename))
+      if (f.isText) {
+        console.log(f.content)
+      }
+      else {
+        console.log(colors.grey(`File of type ${f.mime}`))
+      }
       enquirer.prompt({
         type: 'input',
         name: 'action',
-        message: '[d]elete [e]dit [i]nsert [m]ove [s]elect | [n]ext [p]revious | [q]uit',
+        message: '[d]elete [e]dit [i]nsert [m]ove s[t]ack [s]elect | [n]ext [p]revious | [q]uit',
         validate: (value) => {
-          if (!['d', 't', 'e', 'i', 'm', 's', 'n', 'p', 'q'].includes(value.trim().toLowerCase())) {
+          if (!['d', 't', 'e', 'i', 'm', 't', 's', 'n', 'p', 'q'].includes(value.trim().toLowerCase())) {
             return false
           }
           return true
@@ -132,29 +140,47 @@ function manageInbox(inbox) {
             {
               name: "remove",
               type: "confirm",
-              message: `Are you sure you want to remove ${f}?`,
+              message: `Are you sure you want to remove ${f.filename}?`,
             },
           ])
           .then((answer) => {
             if (answer.remove) {
-              fs.unlinkSync(fullPath)
+              f.delete()
             }
             nextFile()
           })
         }
         else if (action == 'm') {
-          var moveFromInboxPath = inbox.collection.paths.moveFromInbox
+          var moveFromInboxPath = stack.collection.paths.moveFromInbox
           if (fs.existsSync(moveFromInboxPath)) {
-            fs.copyFile(fullPath, path.join(moveFromInboxPath, f), function (err) {
+            fs.copyFile(fullPath, path.join(moveFromInboxPath, f.filename), function (err) {
               if (err) {
                 throw err
               }
               else {
-                fs.unlinkSync(fullPath)
+                f.delete()
               }
               nextFile()
             })
           }
+        }
+        else if (action == 't') {
+          enquirer
+          .prompt([
+            {
+              name: "stack",
+              type: "input",
+              message: "Please enter stack name: ",
+            },
+          ])
+          .then((answer) => {
+            if (answer.stack) {
+              var stackDir = path.join(stack.collection.paths.stacks, answer.stack)
+              !fs.existsSync(stackDir) && fs.mkdirSync(stackDir, { recursive: true })
+              fs.renameSync(fullPath, path.join(stackDir, f.filename))
+            }
+            nextFile()
+          })
         }
         else if (action == 'e') {
           openInEditor(fullPath,(code) =>{
@@ -162,8 +188,8 @@ function manageInbox(inbox) {
           })
         }
         else if (action == 'i') {
-          searchForNote(inbox.collection, (note) => {
-            insertInNote(note, content, (newContent) => {
+          searchForNote(stack.collection, (note) => {
+            insertInNote(note, f.content, (newContent) => {
               enquirer
               .prompt([
                 {
@@ -174,7 +200,7 @@ function manageInbox(inbox) {
               ])
               .then((answer) => {
                 if (answer.remove) {
-                  fs.unlinkSync(fullPath)
+                  f.delete()
                 }
                 nextFile()
               })
@@ -183,11 +209,7 @@ function manageInbox(inbox) {
           })
         }
         else if (action == 's') {
-          selectedFiles.push({
-            file: f,
-            fullPath: fullPath,
-            content: content,
-          })
+          selectedFiles.push(f)
           nextFile()
         }
         else if (action == 'n') {
@@ -212,8 +234,9 @@ function manageInbox(inbox) {
     var mergeTogether = function(selection) {
       var mergedContent = ''
       for (var s of selection) {
-        mergedContent = mergedContent + (mergedContent ? '\n' : '') + s.file + '\n'
+        mergedContent = mergedContent + (mergedContent ? '\n' : '') + s.name + '\n'
         mergedContent = mergedContent + s.content.trim() + '\n'
+        // This will fail when using non-text files!!
       }
       return mergedContent
     }
@@ -223,13 +246,13 @@ function manageInbox(inbox) {
         {
           name: "remove",
           type: "confirm",
-          message: `Now delete ${selection.map(s => s.file).join(', ')}?`,
+          message: `Now delete ${selection.map(s => s.filename).join(', ')}?`,
         },
       ])
       .then((answer) => {
         if (answer.remove) {
           for (var s of selection) {
-            fs.unlinkSync(s.fullPath)
+            s.delete()
           }
         }
       })
@@ -237,9 +260,9 @@ function manageInbox(inbox) {
     }
     console.log('Selected files: ')
     for (var s of selection) {
-      var {file, content} = s
-      console.log(colors.red(file))
-      console.log(content.length < 60 ? content : content.slice(0, 60)+'...')
+      console.log(colors.red(s.filename))
+      console.log(s.content.length < 60 ? s.content : s.content.slice(0, 60)+'...')
+        // This will fail when using non-text files!!
     }
     enquirer.prompt({
       type: 'input',
@@ -262,11 +285,11 @@ function manageInbox(inbox) {
         enquirer.prompt({
           type: 'input',
           name: 'name',
-          message: 'Name of new fleeting note inbox?',
+          message: 'Name of new fleeting note in inbox?',
         })
         .then((answer) => {
           var filename = answer.name.endsWith('.md') ? answer.name : answer.name + '.md'
-          var filepath = inbox.sendText(mergedContent, filename)
+          var filepath = stack.collection.inbox.sendText(mergedContent, filename)
           openInEditor(filepath, (code) => {
             removeSelectedFiles(selection)
           })
@@ -275,7 +298,7 @@ function manageInbox(inbox) {
       }
       else if (action == 'm') {
         var mergedContent = mergeTogether(selection)
-        newNoteWizard(inbox.collection, (note) => {
+        newNoteWizard(stack.collection, (note) => {
           note.setContent(mergedContent)
           openInEditor(note.contentPath, (code) => {
             removeSelectedFiles(selection)
@@ -1067,7 +1090,7 @@ yargs.command({
       }
     }
     else if (argv.manage) {
-      manageInbox(inbox)
+      manageStack(inbox)
     }
     else if (!process.stdin.isTTY) {
       var text = fs.readFileSync(0, 'utf-8')
@@ -1079,6 +1102,31 @@ yargs.command({
         var text = fs.readFileSync('/tmp/pensieveSendToInbox.md', 'utf8')
         text && inbox.sendText(text)
       })
+    }
+  }
+})
+
+yargs.command({
+  command: 'stack [stack]',
+  describe: 'Manage a stack',
+  builder: {
+    "stack": {
+      describe: 'Name of stack',
+      type: 'string',
+    },
+  },
+  handler: function(argv) {
+    try {
+      var collection = new NoteCollection(process.cwd())
+    }
+    catch (e) {
+      errorHandler(e)
+    }
+    if (argv.stack) {
+      var stack = collection.stacks.getStackByPath(argv.stack)
+      if (stack) {
+        manageStack(stack)
+      }
     }
   }
 })
