@@ -1128,6 +1128,21 @@ yargs.command({
         manageStack(stack)
       }
     }
+    else {
+      enquirer.prompt([{
+        type: 'autocomplete',
+        name: 'stack',
+        message: 'Select a stack: ',
+        choices: collection.stacks.getListOfStacks().map(s => {
+          return {message: `${s.relativePath} (${s.getCountOfNotes()})`, name: s.relativePath, value: s}
+        }),
+      }]).then(function(answer) {
+        manageStack(answer.stack)
+      })
+      .catch(console.error)
+    }
+  }
+})
   }
 })
 

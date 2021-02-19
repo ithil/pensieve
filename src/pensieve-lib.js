@@ -693,6 +693,25 @@ class Stacks{
     }
     return getList(this.path)
   }
+  getListOfStacks() {
+    var collection = this.collection
+    var getList = function(givenPath, list) {
+      var list = list || []
+      var listing = fs.readdirSync(givenPath, {withFileTypes: true})
+      listing = listing.filter(f => /^[^\.]/.test(f.name))
+      for (let i of listing) {
+        if (i.isDirectory()) {
+          var stackPath = path.join(givenPath, i.name)
+          list.push(new Stack(collection, stackPath))
+          for (let q of getList(stackPath)) {
+            list.push(q)
+          }
+        }
+      }
+      return list
+    }
+    return getList(this.path)
+  }
   getStackByPath(stackPath) {
     var fullStackPath = path.join(this.collection.paths.stacks, stackPath)
     if (fs.existsSync(fullStackPath)) {
@@ -708,6 +727,7 @@ class Stack{
   constructor(collection, stackPath, parent) {
     this.collection = collection
     this.path = stackPath
+    this.relativePath = path.relative(collection.paths.stacks, this.path)
     this.parent = parent
     this.name = path.basename(stackPath)
     this.isInbox = false
@@ -730,6 +750,11 @@ class Stack{
       return list
     }
     return getList(this.path)
+  }
+  getCountOfNotes() {
+    var listing = fs.readdirSync(this.path, {withFileTypes: true})
+    listing = listing.filter(f => /^[^\.]/.test(f.name))
+    return listing.filter(f => f.isFile()).length
   }
 }
 
