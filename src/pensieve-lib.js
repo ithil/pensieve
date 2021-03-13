@@ -1,10 +1,12 @@
 const fs = require('fs')
 const path = require('path')
+const { EventEmitter } = require("events")
 const MarkdownIt = require('markdown-it')
 var md = new MarkdownIt()
 const moment = require('moment')
 const unorm = require('unorm')
 const Fuse = require('fuse.js')
+const chokidar = require('chokidar')
 const mime = require('mime-types')
 const git = require('isomorphic-git')
 const http = require('isomorphic-git/http/node')
@@ -175,10 +177,123 @@ class NoteCollection{
       if (this.collectionJson.useGit) {
         this.repo = { fs, dir: this.path }
       }
+      this.events = new EventEmitter()
+      this.events.on('noteAdd', (newNote, watcher) => {
+        this.allNotes.push(newNote)
+      })
+      this.events.on('noteChange', (newNote, oldNote, watcher) => {
+        this.refreshNote(newNote)
+      })
+      this.events.on('noteDelete', (oldNotePath, watcher) => {
+        var index = this.allNotes.findIndex(n => n.contentPath == oldNotePath)
+        this.allNotes.splice(index, 1)
+      })
     }
     catch (e) {
       throw e
     }
+  }
+  watch() {
+    var collection = this
+    this.notesWatcher = chokidar.watch(this.paths.all, {
+      followSymlinks: false,
+      ignoreInitial: true,
+      ignored: '*.swp',
+      // awaitWriteFinish: true,
+    })
+    this.notesWatcher.on('all', (event, thisPath) => {
+      var match = /\.([0-9]+)\.json/.exec(path.basename(thisPath))
+      if (match) {
+        if (event == 'add') {
+          var newNote = collection.getNoteById(match[1])
+          newNote && this.events.emit('noteMetadataAdd', newNote, collection.notesWatcher)
+        }
+        else if (event == 'change') {
+          var newNote = collection.getNoteById(match[1])
+          var oldNote = collection.allNotes.find(n => n.contentPath == newNote.contentPath)
+          if (newNote) {
+            this.events.emit('noteMetadataChange', newNote, oldNote, collection.notesWatcher)
+            this.events.emit('noteChange', newNote, oldNote, collection.notesWatcher)
+          }
+        }
+        else if (event == 'unlink') {
+          this.events.emit('noteMetadataDelete', path.join(collection.paths.all, thisPath), collection.notesWatcher)
+        }
+        return
+      }
+      else {
+        if (event == 'add') {
+          var newNote = collection.getNoteByFilename(path.basename(thisPath))
+          if (newNote) {
+            this.events.emit('noteContentAdd', newNote, collection.notesWatcher)
+            this.events.emit('noteAdd', newNote, collection.notesWatcher)
+          }
+        }
+        else if (event == 'change') {
+          var newNote = collection.getNoteByFilename(path.basename(thisPath))
+          var oldNote = collection.allNotes.find(n => n.contentPath == newNote.contentPath)
+          if (newNote) {
+            this.events.emit('noteContentChange', newNote, oldNote, collection.notesWatcher)
+            this.events.emit('noteChange', newNote, oldNote, collection.notesWatcher)
+          }
+        }
+        else if (event == 'unlink') {
+          this.events.emit('noteContentDelete', path.join(collection.paths.all, thisPath), collection.notesWatcher)
+          this.events.emit('noteDelete', path.join(collection.paths.all, thisPath), collection.notesWatcher)
+        }
+      }
+    })
+    this.inboxWatcher = chokidar.watch(this.paths.inbox, {
+      followSymlinks: false,
+      ignoreInitial: true,
+      ignored: '*.swp',
+      // awaitWriteFinish: true,
+    })
+    this.inboxWatcher.on('all', (event, thisPath) => {
+      if (event == 'add') {
+        var fleetingNote = new FleetingNote(path.join(this.paths.inbox, thisPath), this)
+        this.events.emit('inboxItemAdd', fleetingNote, collection.inboxWatcher)
+      }
+      else if (event == 'change') {
+        var fleetingNote = new FleetingNote(path.join(this.paths.inbox, thisPath), this)
+        this.events.emit('inboxItemChange', fleetingNote, collection.inboxWatcher)
+      }
+      else if (event == 'unlink') {
+        this.events.emit('inboxItemDelete', path.join(this.paths.inbox, thisPath), collection.inboxWatcher)
+      }
+    })
+    this.stacksWatcher = chokidar.watch(this.paths.stacks, {
+      followSymlinks: false,
+      ignoreInitial: true,
+      ignored: '*.swp',
+      // awaitWriteFinish: true,
+    })
+    this.stacksWatcher.on('all', (event, thisPath) => {
+      if (event == 'add') {
+        var fleetingNote = new FleetingNote(path.join(this.paths.stacks, thisPath), this)
+        this.events.emit('stacksItemAdd', fleetingNote, collection.stacksWatcher)
+      }
+      else if (event == 'change') {
+        var fleetingNote = new FleetingNote(path.join(this.paths.stacks, thisPath), this)
+        this.events.emit('stacksItemChange', fleetingNote, collection.stacksWatcher)
+      }
+      else if (event == 'unlink') {
+        this.events.emit('stacksItemDelete', path.join(this.paths.stacks, thisPath), collection.stacksWatcher)
+      }
+    })
+  }
+  unwatch() {
+    this.notesWatcher.close()
+    this.inboxWatcher.close()
+    this.stacksWatcher.close()
+  }
+  refreshNote(note) {
+    if (!(note instanceof Note)) {
+      note = this.resolveToNote(note)
+    }
+    var newNote = new Note(note.contentPath, this)
+    var index = this.allNotes.findIndex(n => n.contentPath == note.contentPath)
+    this.allNotes[index] = newNote
   }
   commit() {
     var repo = this.repo
