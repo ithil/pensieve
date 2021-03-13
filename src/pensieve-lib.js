@@ -407,6 +407,46 @@ class NoteCollection{
       fs.writeFileSync(rulesPath, JSON.stringify(autoCategorizeJson, null, ' '), 'utf8')
     }
   }
+  getCategoryTree() {
+    var col = this
+    var colPaths = Object.values(col.paths).map(p => path.basename(p))
+    var colPath = col.path
+    var topLevelFolders = fs.readdirSync(colPath, {withFileTypes: true})
+    var categoryFolders = topLevelFolders.filter(e => e.isDirectory())
+    .filter(e => !e.name.startsWith('.') && !colPaths.includes(e.name))
+    var getCategory = function (dir, dirents) {
+      var entries = []
+      for (let e of dirents) {
+        let fullPath = path.join(dir, e.name)
+        if (e.isDirectory()) {
+          let newDirents = fs.readdirSync(fullPath, {withFileTypes: true})
+          let children = getCategory(fullPath, newDirents)
+          entries.push({
+            type: 'dir',
+            name: e.name,
+            children: children,
+            path: fullPath,
+            relativePath: path.relative(col.path, fullPath)
+          })
+        }
+        else if (e.isSymbolicLink()) {
+          let linkedPath = fs.readlinkSync(path.resolve(dir, e.name))
+          let filename = path.basename(linkedPath)
+          let note = col.getNoteByFilename(filename)
+          if (note) {
+            entries.push({
+              type: 'note',
+              note: note,
+              name: e.name,
+              linkedPath: linkedPath,
+            })
+          }
+        }
+      }
+      return entries
+    }
+    return getCategory(col.path, categoryFolders)
+  }
   getNoteById(id) {
     var listing = fs.readdirSync(this.paths.all)
     for (var f of listing) {
