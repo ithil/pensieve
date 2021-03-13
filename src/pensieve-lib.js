@@ -838,14 +838,14 @@ class Stacks{
     this.collection = collection
     this.path = collection.paths.stacks
   }
-  getStacks() {
+  getStacks(stacksOnly) {
     var collection = this.collection
     var getList = function(givenPath) {
       var listing = fs.readdirSync(givenPath, {withFileTypes: true})
       listing = listing.filter(f => /^[^\.]/.test(f.name))
       var list = []
       for (let i of listing) {
-        if (i.isFile()) {
+        if (i.isFile() && !stacksOnly) {
           list.push(new FleetingNote(path.join(givenPath, i.name), collection))
         }
         else if (i.isDirectory()) {
@@ -918,6 +918,29 @@ class Stack{
     var listing = fs.readdirSync(this.path, {withFileTypes: true})
     listing = listing.filter(f => /^[^\.]/.test(f.name))
     return listing.filter(f => f.isFile()).length
+  }
+  sendText(text, filename) {
+    filename = filename || `${moment().format('YYYY-MM-DD HH,mm,ss')}.md`
+    var filepath = path.join(this.path, filename)
+    fs.writeFileSync(filepath, text, 'utf8')
+    return filepath
+  }
+  sendFile(filepath, cwd='') {
+    var srcFilepath = path.resolve(cwd, filepath)
+    var destFilepath = path.join(this.path, path.basename(srcFilepath))
+    try {
+      fs.copyFileSync(srcFilepath, destFilepath)
+    }
+    catch (e) {
+      if (e.code == 'ENOENT') {
+        var error = Error(`No such file: ${srcFilepath}`)
+        error.name = 'noSuchFile'
+        throw error
+      }
+      else {
+        throw e
+      }
+    }
   }
 }
 
