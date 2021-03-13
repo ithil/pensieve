@@ -740,6 +740,10 @@ class Note{
   get name() {
     return `${this.id}.${this.label}`
   }
+  get lastModifiedContent() {
+    var { mtime, ctime } = fs.statSync(this.contentPath)
+    return mtime
+  }
   delete() {
     try {
       fs.unlinkSync(this.metadataPath)
@@ -754,6 +758,10 @@ class Note{
   setContent(newContent) {
     this.content = newContent
     fs.writeFileSync(this.contentPath, newContent, 'utf8')
+  }
+  setContentAsync(newContent, callback) {
+    this.content = newContent
+    fs.writeFile(this.contentPath, newContent, 'utf8', callback)
   }
   addTag(tag) {
     var tags = this.metadata.tags
@@ -955,6 +963,9 @@ class FleetingNote{
   }
   get content() {
     return fs.readFileSync(this.path, 'utf8')
+  }
+  get contentBase64() {
+    return fs.readFileSync(this.path, 'base64')
   }
   setContent(content) {
     fs.writeFileSync(this.path, content, 'utf8')
