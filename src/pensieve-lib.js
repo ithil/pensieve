@@ -95,12 +95,14 @@ var utils = {
       "creationDate": new Date(),
       "useGit": true,
       "paths": {
-        "all": "./All",
-        "inbox": "./Inbox",
         "stacks": "./Stacks",
         "archive": "./Archived",
-        // "categories": ".",
         "cache": "./.cache",
+      },
+      "specialStacks": {
+        "inbox": "Inbox",
+        "anything": "anything",
+        "appendix": "appendix",
       },
       "tags": [],
     }
@@ -284,7 +286,6 @@ class NoteCollection{
   }
   unwatch() {
     this.notesWatcher.close()
-    this.inboxWatcher.close()
     this.stacksWatcher.close()
   }
   refreshNote(note) {
@@ -790,48 +791,6 @@ class Note{
   }
 }
 
-class Inbox{
-  constructor(collection) {
-    this.collection = collection
-    this.path = collection.paths.inbox
-    this.isInbox = true
-    this.isStack = false
-  }
-  sendText(text, filename) {
-    filename = filename || `${moment().format('YYYY-MM-DD HH,mm,ss')}.md`
-    var filepath = path.join(this.path, filename)
-    fs.writeFileSync(filepath, text, 'utf8')
-    return filepath
-  }
-  sendFile(filepath, cwd='') {
-    var srcFilepath = path.resolve(cwd, filepath)
-    var destFilepath = path.join(this.path, path.basename(srcFilepath))
-    try {
-      fs.copyFileSync(srcFilepath, destFilepath)
-    }
-    catch (e) {
-      if (e.code == 'ENOENT') {
-        var error = Error(`No such file: ${srcFilepath}`)
-        error.name = 'noSuchFile'
-        throw error
-      }
-      else {
-        throw e
-      }
-    }
-  }
-  getList() {
-    var list = []
-    var listing = fs.readdirSync(this.path)
-    listing = listing.filter(f => /^[^\.]/.test(f))
-    for (let f of listing) {
-      let fullPath = path.join(this.path, f)
-      let item = new FleetingNote(fullPath, this.collection)
-      list.push(item)
-    }
-    return list
-  }
-}
 
 class Stacks{
   constructor(collection) {
@@ -884,6 +843,15 @@ class Stacks{
       return false
     }
   }
+  getSpecialStack(role) {
+    var stackPath = this.collection.collectionJson?.specialStacks[role]
+    if (stackPath) {
+      return this.getStackByPath(stackPath)
+    }
+    else {
+      return false
+    }
+  }
 }
 
 class Stack{
@@ -893,7 +861,7 @@ class Stack{
     this.relativePath = path.relative(collection.paths.stacks, this.path)
     this.parent = parent
     this.name = path.basename(stackPath)
-    this.isInbox = false
+    this.isInbox = (this.collection.collectionJson.specialStacks['inbox'] == this.relativePath)
     this.isStack = true
   }
   getContent() {
@@ -979,10 +947,16 @@ class FleetingNote{
     return this.mime.startsWith('image/')
   }
   get inInbox() {
-    return this.path.startsWith(this.collection.paths.inbox)
+    return (this.collection.collectionJson.specialStacks['inbox'] == this.stack)
   }
   get inStacks() {
     return this.path.startsWith(this.collection.paths.stacks)
+  }
+  get stack() {
+    if (this.inStacks) {
+      var p = path.dirname(this.path)
+      return path.relative(this.collection.paths.stacks, p)
+    }
   }
   get content() {
     return fs.readFileSync(this.path, 'utf8')
@@ -1039,7 +1013,6 @@ class Tags{
 module.exports = {
   Note: Note,
   NoteCollection: NoteCollection,
-  Inbox: Inbox,
   Tags: Tags,
   newCollection: newCollection,
   utils: utils,
