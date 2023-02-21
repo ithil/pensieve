@@ -181,6 +181,7 @@ class NoteCollection{
       if (this.collectionJson.useGit) {
         this.repo = { fs, dir: this.path }
       }
+      this.emptyPorts()
       this.events = new EventEmitter()
     }
     catch (e) {
@@ -555,10 +556,50 @@ class Tags{
 
 }
 
+class Port{
+  constructor(properties) {
+    this.name = properties.name
+    this.id = properties.id
+    this.path = path.join(pensieveConfigPath, 'ports', properties.id)
+    this.relativeTargetPath = properties.targetPath
+    this.collectionName = properties.collectionName
+    !fs.existsSync(this.path) && fs.mkdirSync(this.path, { recursive: true })
+  }
+  sendToPort(fn) {
+    fn.removeAllRelations()
+    fs.copyFileSync(fn.path, path.join(this.path, fn.filename))
+    fs.unlinkSync(fn.path)
+    if(fn.hasMetadata) {
+      fs.copyFileSync(fn.metadataPath, path.join(this.path, path.basename(fn.metadataPath)))
+      fs.unlinkSync(fn.metadataPath)
+    }
+  }
+  emptyPort(collection) {
+    var targetPath = path.join(collection.path, this.relativeTargetPath)
+    var listing = fs.readdirSync(this.path)
+    for (let f of listing) {
+      let fullPath = path.join(this.path, f)
+      fs.copyFileSync(fullPath, path.join(targetPath, f))
+      fs.unlinkSync(fullPath)
+    }
+  }
+}
+
+const portsJsonPath = path.join(pensieveConfigPath, 'ports/ports.json')
+if(fs.existsSync(portsJsonPath)) {
+  const portsJson = JSON.parse(fs.readFileSync(portsJsonPath, 'utf8'))
+  var ports = []
+  if (portsJson.ports) {
+    for (let p of portsJson.ports) {
+      ports.push(new Port(p))
+    }
+  }
+}
+
+
 module.exports = {
-  Note: Note,
   NoteCollection: NoteCollection,
-  Tags: Tags,
   newCollection: newCollection,
   utils: utils,
+  ports: ports,
 }
