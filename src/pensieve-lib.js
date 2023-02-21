@@ -176,9 +176,12 @@ class NoteCollection{
     try {
       this.collectionJsonPath = utils.searchCollectionJson(dir)
       this.collectionJson = JSON.parse(fs.readFileSync(this.collectionJsonPath))
+      this.name = this.collectionJson.name || 'Unnamed Note Collection'
       this.path = path.dirname(this.collectionJsonPath)
       this.paths = utils.objectMap(this.collectionJson.paths, p => path.resolve(this.path, p))
       this.stacks = new Stacks(this)
+      this._stackStyleProps = {}
+      var $this = this
       this.registers = (function() {
         let registersJsonPath = path.join($this.path, '.registers.json')
         if (fs.existsSync(registersJsonPath)) {
@@ -342,6 +345,16 @@ class NoteCollection{
       }
   }
     }
+  getStackStyleProps(stackRelativePath) {
+    if (this._stackStyleProps && this._stackStyleProps[stackRelativePath]) {
+      return this._stackStyleProps[stackRelativePath]
+    }
+    else {
+      let stack = this.stacks.getStackByPath(stackRelativePath)
+      let metadata = stack.metadata
+      let style = metadata.get('style') || {}
+      this._stackStyleProps[stackRelativePath] = style
+      return this._stackStyleProps[stackRelativePath]
     }
   }
   saveCollectionJson() {
