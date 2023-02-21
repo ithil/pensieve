@@ -9,6 +9,7 @@ const unorm = require('unorm')
 const Fuse = require('fuse.js')
 const chokidar = require('chokidar')
 const mime = require('mime-types')
+const editJsonFile = require("edit-json-file")
 const git = require('isomorphic-git')
 const http = require('isomorphic-git/http/node')
 
@@ -419,6 +420,7 @@ class Stack{
     this.name = path.basename(stackPath)
     this.isInbox = (this.collection.collectionJson.specialStacks['inbox'] == this.relativePath)
     this.isStack = true
+    this.metadata = editJsonFile(`${this.path}/.stack.json`)
   }
   getContent() {
     var collection = this.collection
