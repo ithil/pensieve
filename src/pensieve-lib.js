@@ -1,5 +1,7 @@
 const fs = require('fs')
 const path = require('path')
+const exec = require('child_process').exec
+const crypto = require('crypto')
 const { EventEmitter } = require("events")
 const MarkdownIt = require('markdown-it')
 const moment = require('moment')
@@ -50,6 +52,9 @@ var utils = {
       )
     )
   },
+  createPwHash(pw) {
+    var md5sum = crypto.createHash('md5')
+    return md5sum.update(pw).digest('hex')
   },
   createNewCollectionJson() {
     var collectionJson = {
@@ -88,36 +93,72 @@ function newCollection(dir, options) {
     if (e.name == 'noCollectionJson') {
       var collectionJson = {...utils.createNewCollectionJson(), ...options}
       !fs.existsSync(dir) && fs.mkdirSync(dir, { recursive: true })
-      for (var k in collectionJson.paths) {
-        var p = collectionJson.paths[k]
-        if (!path.isAbsolute(p)) {
-          p = path.resolve(dir, p)
+      if (!options.proxy) {
+        for (var k in collectionJson.paths) {
+          var p = collectionJson.paths[k]
+          if (!path.isAbsolute(p)) {
+            p = path.resolve(dir, p)
+          }
+          !fs.existsSync(p) && fs.mkdirSync(p, { recursive: true })
         }
-        !fs.existsSync(p) && fs.mkdirSync(p, { recursive: true })
+        fs.writeFileSync(path.join(dir, '.collection.json'), JSON.stringify(collectionJson, null, ' '), 'utf8')
+        if (collectionJson.useGit) {
+          let repo = { fs, dir }
+          git.init(repo)
+          .then(() => {
+            return git.statusMatrix(repo)
+          })
+          .then((status) => {
+            Promise.all(
+              status.map(([filepath, , worktreeStatus]) => {
+                worktreeStatus ? git.add({ ...repo, filepath }) : git.remove({ ...repo, filepath })
+              })
+            )
+          })
+          .then(() => {
+            git.commit({
+              ...repo,
+              author: {name: 'Anonymous', email: 'anon@gmail.com'},
+              message: 'Created Note Collection'}
+            )
+          })
+        }
+        return new NoteCollection(dir)
       }
-      fs.writeFileSync(path.join(dir, '.collection.json'), JSON.stringify(collectionJson, null, ' '), 'utf8')
-      if (collectionJson.useGit) {
-        let repo = { fs, dir }
-        git.init(repo)
-        .then(() => {
-          return git.statusMatrix(repo)
-        })
-        .then((status) => {
-          Promise.all(
-            status.map(([filepath, , worktreeStatus]) => {
-              worktreeStatus ? git.add({ ...repo, filepath }) : git.remove({ ...repo, filepath })
-            })
+      else {
+        if (options.encrypted) {
+          var password = options.password
+          var myPaths = options.paths
+          collectionJson.passwordHash = utils.createPwHash(password)
+          delete collectionJson.password
+          delete collectionJson.paths
+          var plist = require('plist')
+          fs.writeFileSync(path.join(dir, '.collection.json'), JSON.stringify(collectionJson, null, ' '), 'utf8')
+          exec(
+            `printf '%s\\0' ${password} | hdiutil create -volname "${collectionJson.name}" -size 100m -type SPARSE -fs HFS+ "${path.join(dir, 'collection.sparseimage')}" -stdinpass -encryption AES-128 -plist`,
+            (e, stdout, stderr) => {
+              // console.log(`1. ${e}, ${stderr}, ${stdout}`)
+              exec(`printf '%s\\0' ${password} | hdiutil attach "${path.join(dir, 'collection.sparseimage')}" -stdinpass -plist`,
+                (e, stdout, stderr) => {
+                  // console.log(`2. ${e}, ${stderr}, ${stdout}`)
+                  var ans = plist.parse(stdout)
+                  var mountPoint = ans['system-entities'].find(i => i.hasOwnProperty('mount-point'))['mount-point']
+                  fs.copyFile(
+                    path.resolve(__dirname, 'assets/PensieveRemovable.icns'),
+                    path.resolve(mountPoint, '.VolumeIcon.icns'),
+                    (err) => { if(err) throw err }
+                  )
+                  newCollection(mountPoint, {
+                    ...collectionJson,
+                    proxy: false,
+                    paths: myPaths,
+                  })
+                }
+              )
+            }
           )
-        })
-        .then(() => {
-          git.commit({
-            ...repo,
-            author: {name: 'Anonymous', email: 'anon@gmail.com'},
-            message: 'Created Note Collection'}
-          )
-        })
+        }
       }
-      return new NoteCollection(dir)
     }
   }
   finally {
@@ -146,11 +187,64 @@ class NoteCollection{
       throw e
     }
   }
+  static open(dir, opts={}, callback) {
+    try {
+      var collectionJsonPath = utils.searchCollectionJson(dir)
+      var collectionJson = JSON.parse(fs.readFileSync(collectionJsonPath))
+      if (collectionJson.proxy && collectionJson.encrypted) {
+        if (opts.password) {
+          if (collectionJson.passwordHash == utils.createPwHash(opts.password)) {
+            var plist = require('plist')
+            // Check here via `hdiutil info` if volume already attached
+            exec(`printf '%s\\0' ${opts.password} | hdiutil attach "${path.join(dir, 'collection.sparseimage')}" -stdinpass -plist`,
+            (e, stdout, stderr) => {
+              var ans = plist.parse(stdout)
+              var mountPoint = ans['system-entities'].find(i => i.hasOwnProperty('mount-point'))['mount-point']
+              callback({
+                status: 'openNoteCollection',
+                collection: new NoteCollection(mountPoint)
+              })
+            }
+          )
         }
+        else {
+          callback({
+            status: 'passwordIncorrect'
+          })
         }
       }
       else {
+        callback({
+          status: 'passwordRequired'
+        })
       }
+    }
+    else {
+      callback({
+        status: 'openNoteCollection',
+        collection: new NoteCollection(dir)
+      })
+    }
+  }
+  catch (e) {
+    throw e
+  }
+}
+  close() {
+    // Detach
+  }
+  _rmFileSync(filepath) {
+    fs.unlinkSync(filepath)
+  }
+  _rmFileAsync(filepath, callback) {
+    fs.unlink(filepath, callback)
+  }
+  emptyPorts() {
+    var myPorts = ports.filter(p => p.collectionName == this.name)
+    for (let p of myPorts) {
+      p.emptyPort(this)
+    }
+  }
   watch() {
     var collection = this
     this.stacksWatcher = chokidar.watch(this.paths.stacks, {
