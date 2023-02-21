@@ -178,6 +178,16 @@ class NoteCollection{
       this.path = path.dirname(this.collectionJsonPath)
       this.paths = utils.objectMap(this.collectionJson.paths, p => path.resolve(this.path, p))
       this.stacks = new Stacks(this)
+      this.registers = (function() {
+        let registersJsonPath = path.join($this.path, '.registers.json')
+        if (fs.existsSync(registersJsonPath)) {
+          let registersJson = JSON.parse(fs.readFileSync(registersJsonPath))
+          return registersJson.registers || []
+        }
+        else {
+          return []
+        }
+      })()
       if (this.collectionJson.useGit) {
         this.repo = { fs, dir: this.path }
       }
