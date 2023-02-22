@@ -19,6 +19,17 @@ const pVersion = '0.1'
 const pensieveConfigPath = getAppDataPath('pensieve')
 
 var md = new MarkdownIt({linkify: true, html: true})
+md.use( require('markdown-it-bracketed-spans') )
+md.use( require('markdown-it-attrs'), {
+  // optional, these are default options
+  leftDelimiter: '{{',
+  rightDelimiter: '}}',
+  allowedAttributes: []  // empty array = all attributes are allowed
+})
+md.use( require('markdown-it-title'), {
+  level: 0,
+  excerpt: 1,
+})
 
 
 var utils = {
