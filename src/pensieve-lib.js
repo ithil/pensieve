@@ -581,6 +581,26 @@ class Stack{
       }
     }
   }
+  get lastModified() {
+    var fleetingNotes = this.getContent().filter(i => i instanceof FleetingNote)
+    var lastModified = 0
+    for (let n of fleetingNotes) {
+      if (n.lastModified > lastModified) {
+        lastModified = n.lastModified
+      }
+    }
+    return lastModified
+  }
+  get lastAddedTo() {
+    var fleetingNotes = this.getContent().filter(i => i instanceof FleetingNote)
+    var lastAddedTo = 0
+    for (let n of fleetingNotes) {
+      if (n.creationDate > lastAddedTo) {
+        lastAddedTo = n.creationDate
+      }
+    }
+    return lastAddedTo
+  }
 }
 
 class FleetingNote{
