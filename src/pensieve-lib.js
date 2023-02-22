@@ -477,7 +477,7 @@ class NoteCollection{
 class Stacks{
   constructor(collection) {
     this.collection = collection
-    this.path = collection.paths.stacks
+    this.path = collection.paths.stacks || path.join(this.collection.path, 'Stacks')
   }
   getStacks(stacksOnly) {
     var collection = this.collection
