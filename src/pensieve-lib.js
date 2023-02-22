@@ -98,7 +98,7 @@ var utils = {
       "content": t.content,
       "line": t.map ? t.map[0]+1 : undefined
     }))
-  }
+  },
 }
 
 function newCollection(dir, options) {
@@ -572,45 +572,19 @@ class FleetingNote{
   setContent(content) {
     fs.writeFileSync(this.path, content, 'utf8')
   }
-}
-
-class Tags{
-  constructor(collection) {
-    this.path = path.join(collection.path, '.tags.json')
-    if (!fs.existsSync(this.path)) {
-      var emptyTagsJson = {
-        "pVersion": pVersion,
-        "tags": {},
       }
-      this.tagsJson = emptyTagsJson
-      fs.writeFileSync(this.path, JSON.stringify(this.tagsJson, null, ' '), 'utf8')
     }
     else {
-      this.tagsJson = JSON.parse(fs.readFileSync(this.path))
     }
   }
-  getTag(tag) {
-    if (Object.keys(this.tagsJson.tags).includes(tag)) {
-      return this.tagsJson.tags[tag]
     }
   }
-  setTag(tag, props) {
-    this.tagsJson.tags[tag] = props
   }
-  updateTag(tag, props) {
-    var tagProps = this.tagsJson.tags[tag]
-    if (!tagProps) {
-      this.tagsJson.tags[tag] = props
     }
     else {
-      for (var p of Object.keys(props)) {
-        tagProps[p] = props[p]
       }
-      this.tagsJson.tags[tag] = tagProps
     }
   }
-  save() {
-    fs.writeFileSync(this.path, JSON.stringify(this.tagsJson, null, ' '), 'utf8')
   }
 
 }
