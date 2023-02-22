@@ -928,6 +928,16 @@ class FleetingNote{
     }
     return 0
   }
+  get title() {
+    var env = {}
+    var tokens = md.render(this.content, env)
+    return env.title || null
+  }
+  get abstract() {
+    var env = {}
+    var tokens = md.render(this.content, env)
+    return env.title || ((env.excerpt && env.excerpt.length > 0) ? env.excerpt[0] : this.content.slice(0, 80))
+  }
     else {
       }
     }
