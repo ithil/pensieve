@@ -368,11 +368,44 @@ class NoteCollection{
       return new FleetingNote(fnPath, this)
     }
   }
+  searchFleetingNotesRaw(searchString, regexp) {
+    var $this = this
+    return new Promise((resolve, reject) => {
+      let results = []
+      var walk = function(thisPath) {
+        var listing = fs.readdirSync(thisPath, {withFileTypes: true})
+        for (let i of listing) {
+          if (i.isFile() && i.name.endsWith('.md')) {
+            let content = fs.readFileSync(path.join(thisPath, i.name), 'utf8')
+            if (regexp && new RegExp(searchString).test(content)) {
+              results.push(path.join(thisPath, i.name))
+            }
+            else if (!regexp && content.includes(searchString)) {
+              results.push(path.join(thisPath, i.name))
+            }
+          }
+          else if (i.isDirectory()) {
+            let dirWalk = walk(path.join(thisPath, i.name))
+            if (dirWalk) {
+              return dirWalk
+            }
           }
         }
       }
+      walk($this.paths.stacks)
+      resolve(results)
+    })
   }
+  searchFleetingNotes(searchString, regexp) {
+    var $this = this
+    return this.searchFleetingNotesRaw(searchString, regexp).then(results => {
+      var notes = []
+      for (let n of results) {
+        notes.push(new FleetingNote(n, $this))
       }
+      return notes
+    })
+  }
           }
         }
       }
