@@ -618,18 +618,80 @@ class FleetingNote{
       var { birthtime } = fs.statSync(fullPath)
       this.date = birthtime
     }
+    this.relativePath = path.relative(this.collection.path, this.path)
+    this.metadataPath = path.join(path.dirname(this.path), `.${this.name}.json`)
   }
   delete() {
     fs.unlinkSync(this.path)
     this.deleted = true
+    if(this.hasMetadata) {
+      var metadata = this.getMetadata()
+      fs.unlinkSync(this.metadataPath)
+      this.fixLinks(this.relativePath, null, metadata)
+    }
+    // Delete links here...
+  }
+  removeAllRelations() {
+    if(this.hasMetadata) {
+      var metadata = this.getMetadata()
+      this.fixLinks(this.relativePath, null, metadata)
+    }
   }
   rename(newName) {
     fs.renameSync(this.path, path.join(path.dirname(this.path), newName))
   }
   sendToStack(stack) {
+    var oldRelativePath = this.relativePath
     var stackDir = path.join(this.collection.paths.stacks, stack)
+    var newRelativePath = path.relative(this.collection.path, path.join(stackDir, this.filename))
     !fs.existsSync(stackDir) && fs.mkdirSync(stackDir, { recursive: true })
     fs.renameSync(this.path, path.join(stackDir, this.filename))
+    if(this.hasMetadata) {
+      var metadata = this.getMetadata()
+      fs.renameSync(this.metadataPath, path.join(stackDir, path.basename(this.metadataPath)))
+      this.fixLinks(oldRelativePath, newRelativePath, metadata)
+    }
+  }
+  fixLinks(oldRelativePath, newRelativePath, metadata) {
+    var relations = []
+    for (let c of [metadata.links, metadata.backlinks]) {
+      if (c && c.length > 0) {
+        relations = relations.concat(c.map(i => i[0]))
+      }
+    }
+    relations = [...new Set(relations)]
+    for (let r of relations) {
+      let fn = this.collection.getFleetingNoteByPath(r)
+      fn.replaceLink(oldRelativePath, newRelativePath)
+    }
+  }
+  replaceLink(oldRelativePath, newRelativePath) {
+    if (this.hasMetadata) {
+      var metadata = this.getMetadata()
+      if (metadata.links) {
+        metadata.links = metadata.links.map(l => {
+          if (l[0] == oldRelativePath) {
+            l[0] = newRelativePath
+          }
+          return l
+        })
+        if (newRelativePath === null) {
+          metadata.links = metadata.links.filter(l => l[0] !== null)
+        }
+      }
+      if (metadata.backlinks) {
+        metadata.backlinks = metadata.backlinks.map(l => {
+          if (l[0] == oldRelativePath) {
+            l[0] = newRelativePath
+          }
+          return l
+        })
+        if (newRelativePath === null) {
+          metadata.backlinks = metadata.backlinks.filter(l => l[0] !== null)
+        }
+      }
+      this.setMetadata(metadata)
+    }
   }
   get isText() {
     return this.mime.startsWith('text/')
@@ -658,15 +720,214 @@ class FleetingNote{
   setContent(content) {
     fs.writeFileSync(this.path, content, 'utf8')
   }
-      }
+  get hasMetadata() {
+    return fs.existsSync(this.metadataPath)
+  }
+  setMetadata(newMetadata) {
+    // If metadata.links and metadata.backlinks empty => delete file
+    fs.writeFileSync(this.metadataPath, JSON.stringify(newMetadata, null, ' '), 'utf8')
+  }
+  getMetadata() {
+    if (this.hasMetadata) {
+      return JSON.parse(fs.readFileSync(this.metadataPath, 'utf8'))
     }
     else {
+      return null
     }
   }
+  addLink(target, edgeProperties) {
+    var metadata = this.getMetadata() || {links: []}
+    if (path.isAbsolute(target)) {
+      target = path.relative(this.collection.path, target)
+    }
+    if (!metadata.links) {
+      metadata.links = []
+    }
+    var indexIfExists = metadata.links.findIndex(([link]) => {
+      if (path.isAbsolute(link)) {
+        link = path.relative(this.collection.path, link)
+      }
+      return target == link
+    })
+    if (indexIfExists > -1) {
+      metadata.links[indexIfExists][1] = edgeProperties
+    }
+    else {
+      metadata.links.push([target, edgeProperties ? edgeProperties : []])
+    }
+    this.setMetadata(metadata)
+    // Add backlinks here as well
+    var fleetingNote = this.collection.getFleetingNoteByPath(target)
+    if (fleetingNote) {
+      fleetingNote.addBacklink(this.relativePath, edgeProperties)
+    }
+    else {
+      console.error(`Error backlinking: No such fleeting note: ${target}`)
     }
   }
-  }
+  removeLink(target) {
+    if (path.isAbsolute(target)) {
+      target = path.relative(this.collection.path, target)
     }
+    var metadata = this.getMetadata()
+    if (metadata && metadata.links) {
+      var newLinks = metadata.links.filter(i => {
+        let l = i[0]
+        if (path.isAbsolute(l)) {
+          l = path.relative(this.collection.path, l)
+        }
+        return l != target
+      })
+      metadata.links = newLinks
+      this.setMetadata(metadata)
+    }
+    var fleetingNote = this.collection.getFleetingNoteByPath(target)
+    if (fleetingNote) {
+      fleetingNote.removeBacklink(this.relativePath)
+    }
+    else {
+      console.error(`Error removing backlink: No such fleeting note: ${target}`)
+    }
+    // Add somewhere here: Remove metadata alltogether if it's empty
+  }
+  addBacklink(target, edgeProperties) {
+    var metadata = this.getMetadata() || {backlinks: []}
+    if (path.isAbsolute(target)) {
+      target = path.relative(this.collection.path, target)
+    }
+    if (!metadata.backlinks) {
+      metadata.backlinks = []
+    }
+    var indexIfExists = metadata.backlinks.findIndex(([backlink]) => {
+      if (path.isAbsolute(backlink)) {
+        link = path.relative(this.collection.path, backlink)
+      }
+      return target == backlink
+    })
+    if (indexIfExists > -1) {
+      metadata.backlinks[indexIfExists][1] = edgeProperties
+    }
+    else {
+      metadata.backlinks.push([target, edgeProperties])
+    }
+    this.setMetadata(metadata)
+  }
+  removeBacklink(target) {
+    if (path.isAbsolute(target)) {
+      target = path.relative(this.collection.path, target)
+    }
+    var metadata = this.getMetadata()
+    if (metadata && metadata.backlinks) {
+      var newBacklinks = metadata.backlinks.filter(i => {
+        let l = i[0]
+        if (path.isAbsolute(l)) {
+          l = path.relative(this.collection.path, l)
+        }
+        return l != target
+      })
+      metadata.backlinks = newBacklinks
+      this.setMetadata(metadata)
+    }
+    // Add somewhere here: Remove metadata alltogether if it's empty
+  }
+  moveLink(targetRelativePath, delta) {
+    var move = function(array, index, delta) {
+      //ref: https://gist.github.com/albertein/4496103
+      var newIndex = index + delta;
+      if (newIndex < 0 || newIndex == array.length) return; //Already at the top or bottom.
+      var indexes = [index, newIndex].sort((a, b) => a - b); //Sort the indixes (fixed)
+      array.splice(indexes[0], 2, array[indexes[1]], array[indexes[0]]); //Replace from lowest index, two elements, reverting the order
+    }
+    var array_move = function(arr, old_index, new_index) {
+      if (new_index >= arr.length) {
+        var k = new_index - arr.length + 1;
+        while (k--) {
+          arr.push(undefined);
+        }
+      }
+      arr.splice(new_index, 0, arr.splice(old_index, 1)[0]);
+    }
+    if (this.hasMetadata) {
+      var metadata = this.getMetadata()
+      if (metadata.links) {
+        var linkIndex = metadata.links.findIndex(l => (l[0] == targetRelativePath) || (l[0] == path.join(this.collection.path, targetRelativePath))) // This just as a workaround because of erroneous absolute linking in pensine...
+        if (linkIndex > -1) {
+          let newIndex = linkIndex + delta
+          array_move(metadata.links, linkIndex, newIndex)
+        }
+      }
+      if (metadata.backlinks) {
+        var backlinkIndex = metadata.backlinks.findIndex(l => (l[0] == targetRelativePath) || (l[0] == path.join(this.collection.path, targetRelativePath)))
+        if (backlinkIndex > -1) {
+          let newIndex = linkIndex + delta
+          array_move(metadata.backlinks, backlinkIndex, newIndex)
+        }
+      }
+      this.setMetadata(metadata)
+    }
+  }
+  get relations() {
+    if (this._relations) {
+      return this._relations
+    }
+    var relations = []
+    if (this.hasMetadata) {
+      var metadata = this.getMetadata()
+      if (metadata.links) {
+        for (let link of metadata.links) {
+          var fnName = link[0]
+          var edgeProperties = link[1]
+          var fn = this.collection.getFleetingNoteByPath(fnName)
+          relations.push({fn: fn, properties: edgeProperties, direction: 'link'})
+        }
+      }
+      if (metadata.backlinks) {
+        for (let link of metadata.backlinks) {
+          var fnName = link[0]
+          var edgeProperties = link[1]
+          var fn = this.collection.getFleetingNoteByPath(fnName)
+          relations.push({fn: fn, properties: edgeProperties, direction: 'backlink'})
+        }
+      }
+    }
+    this._relations = relations
+    return relations
+  }
+  get rawRelations() {
+    if (this._rawRelations) {
+      return this._rawRelations
+    }
+    var rawRelations = []
+    if (this.hasMetadata) {
+      var metadata = this.getMetadata()
+      if (metadata.links) {
+        for (let link of metadata.links) {
+          var fnName = link[0]
+          var edgeProperties = link[1]
+          rawRelations.push({fn: fnName, properties: edgeProperties, direction: 'link'})
+        }
+      }
+      if (metadata.backlinks) {
+        for (let link of metadata.backlinks) {
+          var fnName = link[0]
+          var edgeProperties = link[1]
+          rawRelations.push({fn: fnName, properties: edgeProperties, direction: 'backlink'})
+        }
+      }
+    }
+    this._rawRelations = rawRelations
+    return rawRelations
+  }
+  get numberOfRelations() {
+    if (this._relations) {
+      return this._relations.length
+    }
+    if (this.hasMetadata) {
+      var metadata = this.getMetadata()
+      return (metadata?.links?.length ?? 0 ) + (metadata?.backlinks?.length ?? 0 )
+    }
+    return 0
+  }
     else {
       }
     }
