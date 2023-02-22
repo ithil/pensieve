@@ -958,6 +958,12 @@ class FleetingNote{
     }
     return relatedDates
   }
+  get webLinks() {
+    var tokens = md.parse(this.content, {})
+    return tokens.map(t => t.children ? t.children : [])
+      .flat().filter(t => t.type == 'link_open')
+      .map(t => t.attrs[0][1])
+  }
   get title() {
     var env = {}
     var tokens = md.render(this.content, env)
