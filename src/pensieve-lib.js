@@ -5,15 +5,19 @@ const crypto = require('crypto')
 const { EventEmitter } = require("events")
 const MarkdownIt = require('markdown-it')
 const moment = require('moment')
+require('moment/locale/de.js')
 const unorm = require('unorm')
 const Fuse = require('fuse.js')
 const chokidar = require('chokidar')
 const mime = require('mime-types')
+const getAppDataPath = require('appdata-path')
 const editJsonFile = require("edit-json-file")
 const git = require('isomorphic-git')
 const http = require('isomorphic-git/http/node')
 
 const pVersion = '0.1'
+const pensieveConfigPath = getAppDataPath('pensieve')
+
 var md = new MarkdownIt({linkify: true, html: true})
 
 
