@@ -328,14 +328,33 @@ class NoteCollection{
       )
     })
   }
+  getFleetingNoteByName(name) {
+    var $this = this
+    var walk = function(thisPath) {
+      var listing = fs.readdirSync(thisPath, {withFileTypes: true})
+      for (let i of listing) {
+        if (i.isFile() && new RegExp(`^${name}\\.`).test(i.name)) {
+          return new FleetingNote(path.join(thisPath, i.name), $this)
         }
+        else if (i.isDirectory()) {
+          let dirWalk = walk(path.join(thisPath, i.name))
+          if (dirWalk) {
+            return dirWalk
           }
         }
       }
     }
+    var stacksWalk = walk($this.paths.stacks)
+    if (stacksWalk) {
+      return stacksWalk
     }
   }
+  getFleetingNoteByPath(fnPath) {
+    if (!path.isAbsolute(fnPath)) {
+      fnPath = path.join(this.path, fnPath)
     }
+    if (fs.existsSync(fnPath)) {
+      return new FleetingNote(fnPath, this)
     }
   }
           }
