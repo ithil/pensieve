@@ -610,12 +610,15 @@ class FleetingNote{
     this.filename = path.basename(fullPath)
     this.mime = mime.lookup(fullPath) || 'application/octet-stream'
     this.name = this.filename.replace(/\.[^/.]+$/, "")
+    var { birthtime, atime, mtime, ctime } = fs.statSync(fullPath)
+    this.atime = atime
+    this.mtime = mtime
+    this.ctime = ctime
     var d = moment(this.name, 'YYYY-MM-DD HH,mm,ss')
     if (d.isValid()) {
       this.date = d.toDate()
     }
     else {
-      var { birthtime } = fs.statSync(fullPath)
       this.date = birthtime
     }
     this.relativePath = path.relative(this.collection.path, this.path)
@@ -937,6 +940,14 @@ class FleetingNote{
     var env = {}
     var tokens = md.render(this.content, env)
     return env.title || ((env.excerpt && env.excerpt.length > 0) ? env.excerpt[0] : this.content.slice(0, 80))
+  }
+  get lastModified() {
+    var { mtime, ctime } = fs.statSync(this.path)
+    return mtime
+  }
+  get creationDate() {
+    var { birthtime } = fs.statSync(this.path)
+    return birthtime
   }
     else {
       }
