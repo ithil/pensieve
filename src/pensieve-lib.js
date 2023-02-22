@@ -981,7 +981,27 @@ class FleetingNote{
     this.addLink(filepath, ['appendix'])
     return filepath
   }
+  setAsBookmark(add = null) {
+    var stackDir = path.join(this.collection.paths.stacks, '.internal')
+    !fs.existsSync(stackDir) && fs.mkdirSync(stackDir, { recursive: true })
+    var stack = this.collection.stacks.getStackByPath('.internal')
+    var bookmarksPath = path.join(stackDir, 'bookmarks.md')
+    if (!fs.existsSync(bookmarksPath)) {
+      // fs.writeFileSync(bookmarksPath, '# Global Bookmarks', 'utf8')
+      stack.sendText('# Global Bookarks', 'bookmarks.md')
+    }
+    if (add) {
+      this.addLink(bookmarksPath, ['bookmark'])
+    }
+    else if (add === false) (
+      this.removeLink(bookmarksPath)
+    )
     else {
+      if (this.rawRelations.findIndex(r => r.fn == path.relative(this.collection.path, bookmarksPath)) > -1) {
+        this.removeLink(bookmarksPath)
+      }
+      else {
+        this.addLink(bookmarksPath, ['bookmark'])
       }
     }
   }
