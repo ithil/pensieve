@@ -406,10 +406,43 @@ class NoteCollection{
       return notes
     })
   }
+  getMostRecentlyChangedNotesRaw() {
+    var $this = this
+    return new Promise((resolve, reject) => {
+      let results = []
+      var walk = function(thisPath) {
+        var listing = fs.readdirSync(thisPath, {withFileTypes: true})
+        for (let i of listing) {
+          if (i.isFile() && i.name.endsWith('.md')) {
+            let fullPath = path.join(thisPath, i.name)
+            results.push({
+              path: fullPath,
+              mtime: fs.statSync(fullPath).mtime,
+            })
+          }
+          else if (i.isDirectory()) {
+            let dirWalk = walk(path.join(thisPath, i.name))
+            if (dirWalk) {
+              return dirWalk
+            }
           }
         }
       }
+      walk($this.paths.stacks)
+      results.sort((a, b) => b.mtime - a.mtime)
+      results = results.map(i => i.path)
+      resolve(results)
+    })
+  }
+  getMostRecentlyChangedNotes(max = 10) {
+    var $this = this
+    return this.getMostRecentlyChangedNotesRaw().then(results => {
+      var notes = []
+      for (let i = 0; i < results.length && i < max; i++) {
+        notes.push(new FleetingNote(results[i], $this))
       }
+      return notes
+    })
   }
     }
   getStackStyleProps(stackRelativePath) {
