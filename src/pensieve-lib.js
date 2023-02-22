@@ -714,6 +714,9 @@ class FleetingNote{
   get isImage() {
     return this.mime.startsWith('image/')
   }
+  get isAudio() {
+    return this.mime.startsWith('audio/')
+  }
   get inInbox() {
     return (this.collection.collectionJson.specialStacks['inbox'] == this.stack)
   }
