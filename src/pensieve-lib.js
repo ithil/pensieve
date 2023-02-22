@@ -973,6 +973,14 @@ class FleetingNote{
     var { birthtime } = fs.statSync(this.path)
     return birthtime
   }
+  addAppendixNote() {
+    var stackDir = path.join(this.collection.paths.stacks, 'appendix')
+    !fs.existsSync(stackDir) && fs.mkdirSync(stackDir, { recursive: true })
+    var stack = this.collection.stacks.getStackByPath('appendix')
+    var filepath = stack.sendText('')
+    this.addLink(filepath, ['appendix'])
+    return filepath
+  }
     else {
       }
     }
