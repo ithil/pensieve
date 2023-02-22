@@ -732,6 +732,9 @@ class FleetingNote{
   get contentBase64() {
     return fs.readFileSync(this.path, 'base64')
   }
+  get contentRendered() {
+    return md.render(this.content)
+  }
   setContent(content) {
     fs.writeFileSync(this.path, content, 'utf8')
   }
