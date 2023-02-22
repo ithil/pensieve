@@ -654,6 +654,10 @@ class FleetingNote{
   }
   rename(newName) {
     fs.renameSync(this.path, path.join(path.dirname(this.path), newName))
+    if(this.hasMetadata) {
+      // ??? Needs some thinking
+      // fs.renameSync(this.metadataPath, path.join(path.dirname(this.path)))
+    }
   }
   sendToStack(stack) {
     var oldRelativePath = this.relativePath
@@ -1017,8 +1021,6 @@ class FleetingNote{
       }
     }
   }
-  }
-
 }
 
 class Port{
