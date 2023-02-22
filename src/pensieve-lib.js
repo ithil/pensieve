@@ -444,7 +444,19 @@ class NoteCollection{
       return notes
     })
   }
+  createDateNode(stack, date) {
+    moment.locale('de')
+    var date = moment(date)
+    var monthPath = path.join(this.paths.stacks, stack, date.format('YYYY'), date.format('MM'))
+    if (!fs.existsSync(monthPath)) {
+      fs.mkdirSync(monthPath, { recursive: true })
     }
+    var dayPath = path.join(monthPath, `${date.format('DD')}.md`)
+    if (!fs.existsSync(dayPath)) {
+      fs.writeFileSync(dayPath, `# ${date.format('dddd, D. MMMM YYYY')}` ,'utf8')
+    }
+    return new FleetingNote(dayPath, this)
+  }
   getStackStyleProps(stackRelativePath) {
     if (this._stackStyleProps && this._stackStyleProps[stackRelativePath]) {
       return this._stackStyleProps[stackRelativePath]
@@ -930,6 +942,18 @@ class FleetingNote{
       return (metadata?.links?.length ?? 0 ) + (metadata?.backlinks?.length ?? 0 )
     }
     return 0
+  }
+  get relatedDates() {
+    var rawRelations = this.rawRelations
+    var pattern = /calendar\/(\d\d\d\d)\/(\d\d)\/(\d\d)/
+    var relatedDates = []
+    for (let r of rawRelations) {
+      let match = r.fn.match(pattern)
+      if (match) {
+        relatedDates.push(new Date(match[1], match[2]-1, match[3]))
+      }
+    }
+    return relatedDates
   }
   get title() {
     var env = {}
