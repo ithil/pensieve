@@ -288,12 +288,12 @@ class NoteCollection{
         thisPath = path.join(this.paths.stacks, thisPath)
       }
       if (event == 'add') {
-        var fleetingNote = new FleetingNote(thisPath, this)
-        this.events.emit('stacksItemAdd', fleetingNote, collection.stacksWatcher)
+        var note = new Note(thisPath, this)
+        this.events.emit('stacksItemAdd', note, collection.stacksWatcher)
       }
       else if (event == 'change') {
-        var fleetingNote = new FleetingNote(thisPath, this)
-        this.events.emit('stacksItemChange', fleetingNote, collection.stacksWatcher)
+        var note = new Note(thisPath, this)
+        this.events.emit('stacksItemChange', note, collection.stacksWatcher)
       }
       else if (event == 'unlink') {
         this.events.emit('stacksItemDelete', thisPath, collection.stacksWatcher)
@@ -339,13 +339,13 @@ class NoteCollection{
       )
     })
   }
-  getFleetingNoteByName(name) {
+  getNoteByName(name) {
     var $this = this
     var walk = function(thisPath) {
       var listing = fs.readdirSync(thisPath, {withFileTypes: true})
       for (let i of listing) {
         if (i.isFile() && new RegExp(`^${name}\\.`).test(i.name)) {
-          return new FleetingNote(path.join(thisPath, i.name), $this)
+          return new Note(path.join(thisPath, i.name), $this)
         }
         else if (i.isDirectory()) {
           let dirWalk = walk(path.join(thisPath, i.name))
@@ -360,15 +360,15 @@ class NoteCollection{
       return stacksWalk
     }
   }
-  getFleetingNoteByPath(fnPath) {
-    if (!path.isAbsolute(fnPath)) {
-      fnPath = path.join(this.path, fnPath)
+  getNoteByPath(notePath) {
+    if (!path.isAbsolute(notePath)) {
+      notePath = path.join(this.path, notePath)
     }
-    if (fs.existsSync(fnPath)) {
-      return new FleetingNote(fnPath, this)
+    if (fs.existsSync(notePath)) {
+      return new Note(notePath, this)
     }
   }
-  searchFleetingNotesRaw(searchString, regexp) {
+  searchNotesRaw(searchString, regexp) {
     var $this = this
     return new Promise((resolve, reject) => {
       let results = []
@@ -396,12 +396,12 @@ class NoteCollection{
       resolve(results)
     })
   }
-  searchFleetingNotes(searchString, regexp) {
+  searchNotes(searchString, regexp) {
     var $this = this
-    return this.searchFleetingNotesRaw(searchString, regexp).then(results => {
+    return this.searchNotesRaw(searchString, regexp).then(results => {
       var notes = []
       for (let n of results) {
-        notes.push(new FleetingNote(n, $this))
+        notes.push(new Note(n, $this))
       }
       return notes
     })
@@ -439,7 +439,7 @@ class NoteCollection{
     return this.getMostRecentlyChangedNotesRaw().then(results => {
       var notes = []
       for (let i = 0; i < results.length && i < max; i++) {
-        notes.push(new FleetingNote(results[i], $this))
+        notes.push(new Note(results[i], $this))
       }
       return notes
     })
@@ -455,7 +455,7 @@ class NoteCollection{
     if (!fs.existsSync(dayPath)) {
       fs.writeFileSync(dayPath, `# ${date.format('dddd, D. MMMM YYYY')}` ,'utf8')
     }
-    return new FleetingNote(dayPath, this)
+    return new Note(dayPath, this)
   }
   getStackStyleProps(stackRelativePath) {
     if (this._stackStyleProps && this._stackStyleProps[stackRelativePath]) {
@@ -487,7 +487,7 @@ class Stacks{
       var list = []
       for (let i of listing) {
         if (i.isFile() && !stacksOnly) {
-          list.push(new FleetingNote(path.join(givenPath, i.name), collection))
+          list.push(new Note(path.join(givenPath, i.name), collection))
         }
         else if (i.isDirectory()) {
           list.push(new Stack(collection, path.join(givenPath, i.name)))
@@ -555,7 +555,7 @@ class Stack{
       var list = []
       for (let i of listing) {
         if (i.isFile()) {
-          list.push(new FleetingNote(path.join(givenPath, i.name), collection))
+          list.push(new Note(path.join(givenPath, i.name), collection))
         }
         else if (i.isDirectory()) {
           list.push(new Stack(collection, path.join(givenPath, i.name), this))
@@ -594,9 +594,9 @@ class Stack{
     }
   }
   get lastModified() {
-    var fleetingNotes = this.getContent().filter(i => i instanceof FleetingNote)
+    var notes = this.getContent().filter(i => i instanceof Note)
     var lastModified = 0
-    for (let n of fleetingNotes) {
+    for (let n of notes) {
       if (n.lastModified > lastModified) {
         lastModified = n.lastModified
       }
@@ -604,9 +604,9 @@ class Stack{
     return lastModified
   }
   get lastAddedTo() {
-    var fleetingNotes = this.getContent().filter(i => i instanceof FleetingNote)
+    var notes = this.getContent().filter(i => i instanceof Note)
     var lastAddedTo = 0
-    for (let n of fleetingNotes) {
+    for (let n of notes) {
       if (n.creationDate > lastAddedTo) {
         lastAddedTo = n.creationDate
       }
@@ -615,7 +615,7 @@ class Stack{
   }
 }
 
-class FleetingNote{
+class Note{
   constructor(fullPath, col) {
     this.path = fullPath
     this.collection = col
@@ -680,8 +680,8 @@ class FleetingNote{
     }
     relations = [...new Set(relations)]
     for (let r of relations) {
-      let fn = this.collection.getFleetingNoteByPath(r)
-      fn.replaceLink(oldRelativePath, newRelativePath)
+      let note = this.collection.getNoteByPath(r)
+      note.replaceLink(oldRelativePath, newRelativePath)
     }
   }
   replaceLink(oldRelativePath, newRelativePath) {
@@ -782,12 +782,12 @@ class FleetingNote{
     }
     this.setMetadata(metadata)
     // Add backlinks here as well
-    var fleetingNote = this.collection.getFleetingNoteByPath(target)
-    if (fleetingNote) {
-      fleetingNote.addBacklink(this.relativePath, edgeProperties)
+    var note = this.collection.getNoteByPath(target)
+    if (note) {
+      note.addBacklink(this.relativePath, edgeProperties)
     }
     else {
-      console.error(`Error backlinking: No such fleeting note: ${target}`)
+      console.error(`Error backlinking: No such note: ${target}`)
     }
   }
   removeLink(target) {
@@ -806,12 +806,12 @@ class FleetingNote{
       metadata.links = newLinks
       this.setMetadata(metadata)
     }
-    var fleetingNote = this.collection.getFleetingNoteByPath(target)
-    if (fleetingNote) {
-      fleetingNote.removeBacklink(this.relativePath)
+    var note = this.collection.getNoteByPath(target)
+    if (note) {
+      note.removeBacklink(this.relativePath)
     }
     else {
-      console.error(`Error removing backlink: No such fleeting note: ${target}`)
+      console.error(`Error removing backlink: No such note: ${target}`)
     }
     // Add somewhere here: Remove metadata alltogether if it's empty
   }
@@ -900,18 +900,18 @@ class FleetingNote{
       var metadata = this.getMetadata()
       if (metadata.links) {
         for (let link of metadata.links) {
-          var fnName = link[0]
+          var noteName = link[0]
           var edgeProperties = link[1]
-          var fn = this.collection.getFleetingNoteByPath(fnName)
-          relations.push({fn: fn, properties: edgeProperties, direction: 'link'})
+          var note = this.collection.getNoteByPath(noteName)
+          relations.push({note: note, properties: edgeProperties, direction: 'link'})
         }
       }
       if (metadata.backlinks) {
         for (let link of metadata.backlinks) {
-          var fnName = link[0]
+          var noteName = link[0]
           var edgeProperties = link[1]
-          var fn = this.collection.getFleetingNoteByPath(fnName)
-          relations.push({fn: fn, properties: edgeProperties, direction: 'backlink'})
+          var note = this.collection.getNoteByPath(noteName)
+          relations.push({note: note, properties: edgeProperties, direction: 'backlink'})
         }
       }
     }
@@ -927,16 +927,16 @@ class FleetingNote{
       var metadata = this.getMetadata()
       if (metadata.links) {
         for (let link of metadata.links) {
-          var fnName = link[0]
+          var noteName = link[0]
           var edgeProperties = link[1]
-          rawRelations.push({fn: fnName, properties: edgeProperties, direction: 'link'})
+          rawRelations.push({notePath: noteName, properties: edgeProperties, direction: 'link'})
         }
       }
       if (metadata.backlinks) {
         for (let link of metadata.backlinks) {
-          var fnName = link[0]
+          var noteName = link[0]
           var edgeProperties = link[1]
-          rawRelations.push({fn: fnName, properties: edgeProperties, direction: 'backlink'})
+          rawRelations.push({notePath: noteName, properties: edgeProperties, direction: 'backlink'})
         }
       }
     }
@@ -958,7 +958,7 @@ class FleetingNote{
     var pattern = /calendar\/(\d\d\d\d)\/(\d\d)\/(\d\d)/
     var relatedDates = []
     for (let r of rawRelations) {
-      let match = r.fn.match(pattern)
+      let match = r.notePath.match(pattern)
       if (match) {
         relatedDates.push(new Date(match[1], match[2]-1, match[3]))
       }
@@ -1013,7 +1013,7 @@ class FleetingNote{
       this.removeLink(bookmarksPath)
     )
     else {
-      if (this.rawRelations.findIndex(r => r.fn == path.relative(this.collection.path, bookmarksPath)) > -1) {
+      if (this.rawRelations.findIndex(r => r.notePath == path.relative(this.collection.path, bookmarksPath)) > -1) {
         this.removeLink(bookmarksPath)
       }
       else {
@@ -1032,13 +1032,13 @@ class Port{
     this.collectionName = properties.collectionName
     !fs.existsSync(this.path) && fs.mkdirSync(this.path, { recursive: true })
   }
-  sendToPort(fn) {
-    fn.removeAllRelations()
-    fs.copyFileSync(fn.path, path.join(this.path, fn.filename))
-    fs.unlinkSync(fn.path)
-    if(fn.hasMetadata) {
-      fs.copyFileSync(fn.metadataPath, path.join(this.path, path.basename(fn.metadataPath)))
-      fs.unlinkSync(fn.metadataPath)
+  sendToPort(note) {
+    note.removeAllRelations()
+    fs.copyFileSync(note.path, path.join(this.path, note.filename))
+    fs.unlinkSync(note.path)
+    if(note.hasMetadata) {
+      fs.copyFileSync(note.metadataPath, path.join(this.path, path.basename(note.metadataPath)))
+      fs.unlinkSync(note.metadataPath)
     }
   }
   emptyPort(collection) {
