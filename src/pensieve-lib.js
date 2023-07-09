@@ -370,6 +370,15 @@ class NoteCollection{
       return new Note(notePath, this)
     }
   }
+  resolveNoteLink(link) {
+    let pathWithoutExtension = path.join(this.paths.stacks, link)
+    for (let ext of ['md', 'canvas', 'tasklist', 'json']) {
+      let fullPath = `${pathWithoutExtension}.${ext}`
+      if (fs.existsSync(fullPath)) {
+        return new Note(fullPath, this)
+      }
+    }
+  }
   searchNotesRaw(searchString, regexp) {
     var $this = this
     return new Promise((resolve, reject) => {
@@ -446,6 +455,34 @@ class NoteCollection{
       return notes
     })
   }
+  getAllNotes({excludeStacks = ['calendar']} = {}) {
+    var $this = this
+    return new Promise((resolve, reject) => {
+      let results = []
+      var walk = function(thisPath) {
+        var listing = fs.readdirSync(thisPath, {withFileTypes: true})
+        for (let i of listing) {
+          let fullPath = path.join(thisPath, i.name)
+          if (i.isFile() && !i.name.startsWith('.')) {
+            results.push({
+              path: fullPath,
+              mtime: fs.statSync(fullPath).mtime,
+            })
+          }
+          else if (i.isDirectory() && !excludeStacks.includes(path.relative($this.paths.stacks, fullPath))) {
+            let dirWalk = walk(path.join(thisPath, i.name))
+            if (dirWalk) {
+              return dirWalk
+            }
+          }
+        }
+      }
+      walk($this.paths.stacks)
+      results.sort((a, b) => b.mtime - a.mtime)
+      results = results.map(i => new Note(i.path, $this))
+      resolve(results)
+    })
+  }
   createDateNode(stack, date) {
     moment.locale('de')
     var date = moment(date)
@@ -459,6 +496,20 @@ class NoteCollection{
     }
     return new Note(dayPath, this)
   }
+  getDateNode({stack = 'calendar', date, day, month, year} = {}) {
+    if (date) {
+      day = date.getDate()
+      month = date.getMonth() + 1
+      year = date.getUTCFullYear()
+    }
+    let dayPath = path.join(this.paths.stacks, stack, `${year}`, `${month}`.padStart(2, '0'), `${day}`.padStart(2, '0')+'.md')
+    if (fs.existsSync(dayPath)) {
+      return new Note(dayPath, this)
+    }
+    else {
+      return null
+    }
+  }
   getStackStyleProps(stackRelativePath) {
     if (this._stackStyleProps && this._stackStyleProps[stackRelativePath]) {
       return this._stackStyleProps[stackRelativePath]
@@ -466,7 +517,7 @@ class NoteCollection{
     else {
       let stack = this.stacks.getStackByPath(stackRelativePath)
       let metadata = stack.metadata
-      let style = metadata.get('style') || {}
+      let style = metadata?.get('style') || {}
       this._stackStyleProps[stackRelativePath] = style
       return this._stackStyleProps[stackRelativePath]
     }
@@ -576,6 +627,7 @@ class Stack{
     this.isInbox = (this.collection.collectionJson.specialStacks['inbox'] == this.relativePath)
     this.isStack = true
     this.metadata = editJsonFile(`${this.path}/.stack.json`)
+    this.style = this.metadata.get('style') || {}
   }
   getContent() {
     var collection = this.collection
@@ -822,6 +874,9 @@ class Note{
       var p = path.dirname(this.path)
       return path.relative(this.collection.paths.stacks, p)
     }
+  }
+  get noteLink() {
+    return `/${this.stack}/${this.name}`
   }
   get content() {
     return fs.readFileSync(this.path, 'utf8')
@@ -1132,7 +1187,7 @@ class Note{
     var bookmarksPath = path.join(stackDir, 'bookmarks.md')
     if (!fs.existsSync(bookmarksPath)) {
       // fs.writeFileSync(bookmarksPath, '# Global Bookmarks', 'utf8')
-      stack.sendText('# Global Bookarks', 'bookmarks.md')
+      stack.sendText('# Global Bookmarks', 'bookmarks.md')
     }
     if (add) {
       this.addLink(bookmarksPath, ['bookmark'])
