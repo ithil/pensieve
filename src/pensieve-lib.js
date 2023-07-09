@@ -14,6 +14,8 @@ const getAppDataPath = require('appdata-path')
 const editJsonFile = require("edit-json-file")
 const git = require('isomorphic-git')
 const http = require('isomorphic-git/http/node')
+const {v4: uuidv4} = require('uuid')
+const {NodeVM} = require('vm2')
 
 const pVersion = '0.1'
 const pensieveConfigPath = getAppDataPath('pensieve')
@@ -468,6 +470,34 @@ class NoteCollection{
       this._stackStyleProps[stackRelativePath] = style
       return this._stackStyleProps[stackRelativePath]
     }
+  }
+  getAllTemplates() {
+    var templates = []
+    var templateDir = path.join(this.paths.stacks, '.internal', 'templates')
+    if (fs.existsSync(templateDir)) {
+      var listing = fs.readdirSync(templateDir)
+      for (let fn of listing.filter(n => n.endsWith('.json'))) {
+        let filePath = path.join(templateDir, fn)
+        templates.push(new Template(filePath, this))
+      }
+    }
+    return templates
+  }
+  newTemplate(title = "New Template") {
+    var templateDir = path.join(this.paths.stacks, '.internal', 'templates')
+    !fs.existsSync(templateDir) && fs.mkdirSync(templateDir, { recursive: true })
+    var fn = `${uuidv4()}.json`
+    var filePath = path.join(templateDir, fn)
+    var templateObj = {
+      title,
+      type: 'note',
+      enabled: true,
+      fromDate: false,
+      stack: 'Inbox',
+      generator: "handleResponse({\n  status: 'done',\n  payload: {\n    content: '# Test',\n    //stack: 'Inbox',\n  },\n})",
+    }
+    fs.writeFileSync(filePath, JSON.stringify(templateObj, null, ' '))
+    return new Template(filePath, this)
   }
   saveCollectionJson() {
     fs.writeFileSync(this.collectionJsonPath, JSON.stringify(this.collectionJson, null, ' '), 'utf8')
@@ -1060,6 +1090,85 @@ if(fs.existsSync(portsJsonPath)) {
     for (let p of portsJson.ports) {
       ports.push(new Port(p))
     }
+  }
+}
+
+class Template{
+  constructor(filePath, collection) {
+    if (fs.existsSync(filePath)) {
+      let fileContent = fs.readFileSync(filePath)
+      this.templateObj = JSON.parse(fileContent)
+      this.savedTemplateObj = JSON.parse(fileContent)
+      this.path = filePath
+      this.id = path.basename(filePath).replace(/\.[^/.]+$/, "")
+    }
+    this.collection = collection
+  }
+  setTemplate(templateObj = this.templateObj) {
+    fs.writeFileSync(this.path, JSON.stringify(templateObj, null, ' '))
+    this.templateObj = templateObj
+    this.savedTemplateObj = templateObj
+  }
+  getTemplate() {
+    return this.templateObj
+  }
+  execute({args, callback}) {
+    var $this = this
+    var handleResponse = (res) => {
+      console.log(res)
+      if (res.status == 'done') {
+        let stack = $this.collection.stacks.getStackByPath(res.payload.stack || 'Inbox')
+        let notePath = stack.sendText(res.payload.content)
+        let note = $this.collection.getNoteByPath(notePath)
+        if (res.payload.linkToDates) {
+          for (let d of res.payload.linkToDates) {
+            let dateNote = $this.collection.createDateNode('calendar', d)
+            note.addLink(dateNote.relativePath, ['date'])
+          }
+        }
+        if (res.payload.relations) {
+          for (let r of res.payload.relations) {
+            if (typeof r  === 'string') {
+              var noteLink = r
+              var edgeProperties = []
+            }
+            else if (r instanceof Array) {
+              var noteLink = r.shift()
+              var edgeProperties = [...r]
+            }
+            let relatedNote = $this.collection.resolveNoteLink(noteLink || '')
+            if (relatedNote) {
+              note.addLink(relatedNote.relativePath, edgeProperties)
+            }
+          }
+        }
+        callback(note)
+      }
+      else if (res.status == 'error') {
+        //
+      }
+    }
+    const vm = new NodeVM({
+      sandbox: {
+        args,
+        moment,
+        handleResponse,
+        collection: this.collection,
+      }
+    })
+    return vm.run(this.templateObj.generator)
+  }
+  duplicate(title = `${this.templateObj.title} (2)`) {
+    var templateDir = path.join(this.collection.paths.stacks, '.internal', 'templates')
+    !fs.existsSync(templateDir) && fs.mkdirSync(templateDir, { recursive: true })
+    var fn = `${uuidv4()}.json`
+    var filePath = path.join(templateDir, fn)
+    fs.writeFileSync(filePath, JSON.stringify({...this.templateObj, title}, null, ' '))
+    return new Template(filePath, this.collection)
+  }
+  delete() {
+    fs.unlinkSync(this.path)
+    this.deleted = true
   }
 }
 
