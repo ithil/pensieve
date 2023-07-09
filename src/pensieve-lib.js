@@ -606,6 +606,45 @@ class Stack{
     fs.writeFileSync(filepath, text, 'utf8')
     return filepath
   }
+  createCanvas({filename, title}) {
+    filename = filename || `${moment().format('YYYY-MM-DD HH,mm,ss')}.canvas`
+    title = title || 'Untitled Canvas'
+    var filepath = path.join(this.path, filename)
+    var canvasObj = {
+      title: title,
+      elements: [
+        {
+          id: uuidv4(),
+          type: 'markdown',
+          text: `# ${title}`,
+          x: 200,
+          y: 200,
+          width: 200,
+          height: 100,
+          creationDate: new Date((new Date()).getTime() + 1000), // To avoid having the same time id as the canvas when converting to note
+          modificationDate: new Date((new Date()).getTime() + 1000),
+        },
+      ],
+      edges: [],
+      style: {},
+    }
+    fs.writeFileSync(filepath, JSON.stringify(canvasObj), 'utf8')
+    return filepath
+  }
+  createTasklist({filename, title}) {
+    filename = filename || `${moment().format('YYYY-MM-DD HH,mm,ss')}.tasklist`
+    title = title || 'Untitled Tasklist'
+    var filepath = path.join(this.path, filename)
+    var tasklistObj = {
+      title: title,
+      creationDate: new Date((new Date()).getTime()),
+      modificationDate: new Date((new Date()).getTime()),
+      list: [
+      ],
+    }
+    fs.writeFileSync(filepath, JSON.stringify(tasklistObj), 'utf8')
+    return filepath
+  }
   sendFile(filepath, cwd='') {
     var srcFilepath = path.resolve(cwd, filepath)
     var destFilepath = path.join(this.path, path.basename(srcFilepath))
@@ -740,6 +779,21 @@ class Note{
         }
       }
       this.setMetadata(metadata)
+      if (this.isCanvas) {
+        let {canvasObj} = this
+        for (let el of canvasObj.elements) {
+          if (el.path == oldRelativePath) {
+            if (newRelativePath === null) {
+              el.type = 'markdown'
+              el.text = `The note \`${el.path}\` has been deleted.`
+            }
+            else {
+              el.path = newRelativePath
+            }
+          }
+        }
+        this.setContent(JSON.stringify(canvasObj, null, 2))
+      }
     }
   }
   get isText() {
@@ -750,6 +804,12 @@ class Note{
   }
   get isAudio() {
     return this.mime.startsWith('audio/')
+  }
+  get isCanvas() {
+    return this.filename.endsWith('.canvas')
+  }
+  get isTasklist() {
+    return this.filename.endsWith('.tasklist')
   }
   get inInbox() {
     return (this.collection.collectionJson.specialStacks['inbox'] == this.stack)
@@ -771,6 +831,16 @@ class Note{
   }
   get contentRendered() {
     return md.render(this.content)
+  }
+  get canvasObj() {
+    if (this.isCanvas) {
+      return JSON.parse(this.content)
+    }
+  }
+  get tasklistObj() {
+    if (this.isTasklist) {
+      return JSON.parse(this.content)
+    }
   }
   setContent(content) {
     fs.writeFileSync(this.path, content, 'utf8')
@@ -1002,14 +1072,42 @@ class Note{
       .map(t => t.attrs[0][1])
   }
   get title() {
-    var env = {}
-    var tokens = md.render(this.content, env)
-    return env.title || null
+    if (this.isCanvas) {
+      return this.canvasObj.title || 'Canvas'
+    }
+    else if (this.isTasklist) {
+      return this.tasklistObj.title || 'Tasklist'
+    }
+    else if (this.isText) {
+      var env = {}
+      var tokens = md.render(this.content, env)
+      return env.title || null
+    }
+    else if (this.isAudio) {
+      return 'Audio File'
+    }
+    else if (this.isImage) {
+      return 'Image File'
+    }
   }
   get abstract() {
-    var env = {}
-    var tokens = md.render(this.content, env)
-    return env.title || ((env.excerpt && env.excerpt.length > 0) ? env.excerpt[0] : this.content.slice(0, 80))
+    if (this.isCanvas) {
+      return this.canvasObj.title || 'Canvas'
+    }
+    else if (this.isTasklist) {
+      return this.tasklistObj.title || 'Tasklist'
+    }
+    else if (this.isText) {
+      var env = {}
+      var tokens = md.render(this.content, env)
+      return env.title || ((env.excerpt && env.excerpt.length > 0) ? env.excerpt[0] : this.content.slice(0, 80))
+    }
+    else if (this.isAudio) {
+      return 'Audio File'
+    }
+    else if (this.isImage) {
+      return 'Image File'
+    }
   }
   get lastModified() {
     var { mtime, ctime } = fs.statSync(this.path)
